@@ -13,12 +13,21 @@ def generate_user_token(payload: dict):
     return token
 
 def decode_user_token(token: str):
-    jwt_key = os.getenv("JWT_SECRET")
-    return jwt.decode(token, jwt_key, algorithms=['HS256'])
+    try:
+        jwt_key = os.getenv("JWT_SECRET")
+        return jwt.decode(token, jwt_key, algorithms=['HS256'])
+    except:
+        raise HTTPException(status_code=401, detail="Invalid Token")
+
 
 async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]):
-    token = credentials.credentials
-    user_credential = decode_user_token(token=token)
+    try:
+        token = credentials.credentials
+
+        user_credential = decode_user_token(token=token)
+    except:
+        raise HTTPException(status_code=401, detail="Invalid Token")
+        
 
     if user_credential:
         user = await User.filter(id=user_credential["id"]).prefetch_related("company").first()
