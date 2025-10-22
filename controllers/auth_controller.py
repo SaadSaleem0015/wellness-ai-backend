@@ -3,9 +3,9 @@ from argon2 import PasswordHasher
 from pydantic import BaseModel, EmailStr
 from typing import Annotated,Optional
 from models.user import User, UserType
+from models.company import Company
 from models.code import Code
-from helpers.jwt_token import generate_user_token, decode_user_token, get_current_user
-from helpers.email import generate_code
+from helpers.jwt_token import generate_user_token, get_current_user
 import os
 from enum import Enum
 
@@ -24,7 +24,7 @@ class SignupPayload(BaseModel):
 
 
 class LoginPayload(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 class AccountVerificationPayload(BaseModel):
@@ -69,23 +69,53 @@ async def  signup(payload: SignupPayload):
             password = ph.hash(payload.password),
         )
         await user.save()
-        is_email_sent:bool = await generate_code("account_activation", user=user)
-        if(is_email_sent):
-            return {
+
+        # Create a company for this new user and assign as main admin
+        try:
+            first_name = payload.name.split()[0] if payload.name else ""
+            # e.g., "Saad's company"
+            company_name = f"{first_name}'s company" if first_name else "My company"
+            company = await Company.create(
+                company_name=company_name,
+                admin_name=payload.name
+            )
+            user.company = company
+            user.main_admin = True
+            await user.save()
+        except Exception as ce:
+            # If company creation fails, clean up the created user to avoid orphaned records
+            try:
+                await user.delete()
+            except:
+                pass
+            raise HTTPException(status_code=400, detail=f"Failed to create company: {ce}")
+     
+        return {
                 "success": True, 
                 "verify": True,
-                "detail": "Verification Email send successfully" ,
+                "detail": "User and company created successfully" ,
+                "data": {
+                    "user": {
+                        "id": user.id,
+                        "name": user.name,
+                        "email": user.email,
+                        "main_admin": user.main_admin
+                    },
+                    "company": {
+                        "id": user.company_id,
+                        "company_name": company.company_name,
+                        "admin_name": company.admin_name
+                    }
+                }
             
         }
-        else:
-            await user.delete()
 
-            return {"success": True, "message": "Verification email not sent"}
     except Exception as e:
         raise HTTPException(status_code=400,detail=f"server error {e}")
     
 @auth_router.post("/signin")
 async def signin(data: LoginPayload):
+    print(data)
     user = await User.filter(email=data.email).first()
     if not user:
         raise HTTPException(
@@ -93,28 +123,13 @@ async def signin(data: LoginPayload):
             detail="User Not found"
         )
     
-    try:
-        is_varified = ph.verify(user.password, data.password)
-        print(f"IS Varified: {is_varified}")
-    except:
-        raise HTTPException(
-            status_code=400, 
-            detail="Invalid Credentials."
-        )
-        
-    if user.email_verified == False:
-        is_email_sent:bool = await generate_code("account_activation", user=user)
-        if is_email_sent:
-            return  {
-                "success":True,
-                "verify": False,
-                "detail":"Email not verified verfication code sent successfully"
-            }
-        else:
+    is_varified = ph.verify(user.password, data.password)
+    if not is_varified:
+           return { 
+            "success": False,
+            "detail":"Invalid password"
+        }
 
-            raise HTTPException(
-                status_code=400,
-                detail="Email not verified verfication code not sent")
     try:
         token = generate_user_token({ "id": user.id })
         return { 
@@ -136,127 +151,11 @@ async def signin(data: LoginPayload):
 
     
 
-@auth_router.post("/account-verification")
-async def account_verificatoin(payload: AccountVerificationPayload):
-    user = await User.filter(email=payload.email).first()
-    if not user:
-        raise HTTPException(detail="User not found", status_code=400)
-    print(f"Payload: {payload.code}")
-    code = await Code.filter(user__id=user.id).order_by("-id").first()
-    
-    if not code:
-        raise HTTPException(detail="Invalid code", status_code=400)
-    try:
-        if (code.value == str(payload.code)):
-            user.email_verified = True
-            await user.save()
-            # confirmation_email(to_email=user.email)
-            await code.delete()
-            token = generate_user_token({ "id": user.id })
-            return {
-                "success": True,
-                "token": token,
-                "user": {
-                    'name': user.name,
-                    "token": token,
-                    'type':user.type,
-                    'email': user.email,
-                },
-                "detail": "Account verified successfully"
-            }
-    except Exception as e:
-        raise HTTPException(detail="Invalid code", status_code=400)
-
-
-
-@auth_router.post("/resend-otp")
-async def resend_otp(payload: PasswordResetCode):
-    user = await User.filter(email=payload.email).first()
-    if not user:
-        raise HTTPException(detail="Account not found ", status_code=400)
-    try:
-        await generate_code("account_activation", user)
-        return {
-            "success": True,
-            "detail": "Account activation code sent successfully"
-        }
-    except Exception as e:
-        raise HTTPException(detail=str(e), status_code=500)
-    
-@auth_router.post("/password-reset-code")
-async def password_reset_code(payload: PasswordResetCode):
-    user = await User.filter(email=payload.email).first()
-    if not user:
-        raise HTTPException(detail="Account not found ", status_code=400)
-    try:
-        await generate_code("password_reset", user)
-        return {
-            "success": True,
-            "detail": "Password reset code sent successfully"
-        }
-    except Exception as e:
-        raise HTTPException(detail=str(e), status_code=500)
-
-
-
-
-@auth_router.post("/confirm-opt")
-async def confirm_otp(payload: VerifyCodePayload):
-    user = await User.filter(email=payload.email).first()
-    if not user:
-        raise HTTPException(detail="User not found", status_code=400)
-    if user:
-        code  = await Code.filter(user__id=user.id, type="password_reset").order_by("-id").first()
-        if not code:
-            raise HTTPException(detail="Invalid Code", status_code=400)
-        if payload.code == code.value:
-            return {
-                "success": True,
-                "detail": "Otp verified successfully"
-            }
-        else:
-            raise HTTPException(detail="Invalid code", status_code=400)
-    else:
-        raise HTTPException(detail="User not found", status_code=400)
-    
-    
-@auth_router.post("/reset-password")
-async def reset_password(payload: ResetCodePayload):
-    try:
-        user = await User.filter(email=payload.email).first()
-        if user:
-            code  = await Code.filter(user__id=user.id, type="password_reset").order_by("-id").first()
-            if not code:
-                raise HTTPException(detail="Code not found", status_code=400)
-            if payload.code == code.value:
-                hashed_password = ph.hash(payload.password)
-                user.password = hashed_password
-                await user.save()
-                await code.delete()
-                return {
-                    "success": True,
-                    "detail": "Password reset successfully"
-                }
-            else:
-                raise HTTPException(detail="Invalid code", status_code=400)
-        else:
-            raise HTTPException(detail="User not found", status_code=400)
-    except Exception as e:
-        raise HTTPException(detail=str(e), status_code=400)
-    
-@auth_router.get("/validate-token")
-async def validate_token(user: Annotated[User, Depends(get_current_user)]):
-   
-    if not user:
-        raise HTTPException(detail="Un Authenticated", status_code=401)
-    if user:
-        return {
-            "success": True,
-            "detail": "Token verified successfully"
-        } 
 
 @auth_router.post("/update-profile")
-async def update_profile(data: UpdateProfilePayload,user:Annotated[User,Depends(get_current_user)]):
+async def update_profile(data: UpdateProfilePayload,current:Annotated[User,Depends(get_current_user)]):
+    user, company  = current
+
     if await User.filter(email=data.email).first():
         if data.email != user.email:
             
@@ -287,7 +186,9 @@ async def update_profile(data: UpdateProfilePayload,user:Annotated[User,Depends(
 
 
 @auth_router.get("/profile")
-async def get_profile(user:Annotated[User,Depends(get_current_user)]):
+async def get_profile(current:Annotated[User,Depends(get_current_user)]):
+    user, company  = current
+
     if not user:
         raise HTTPException(detail="Un Authenticated", status_code=401)
     return {
@@ -301,3 +202,19 @@ async def get_profile(user:Annotated[User,Depends(get_current_user)]):
     }
 
 
+@auth_router.get("/validate-token")
+async def validate_me(current: Annotated[User, Depends(get_current_user)]):
+    user, company  = current
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    return {
+        "success": True,
+        "data": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "type": user.type,
+        },
+        "detail": "Token is valid. User authenticated successfully."
+    }

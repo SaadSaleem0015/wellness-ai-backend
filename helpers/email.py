@@ -330,3 +330,103 @@ def send_reset_email(to_email: str, code: Union[str, int]):
     subject = "Confirm Email to Reset Password"
     return send_email(to_email, subject, message_html)
 
+
+
+def send_booking_confirmation_email(to_email: str, name: str, prefilled_url: str):
+    message_html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Confirm Your Appointment</title>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background-color: #f4f4f4;
+                font-family: Arial, sans-serif;
+            }}
+            .email-container {{
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: #ffffff;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }}
+            .header {{
+                background-color: #2752D8;
+                padding: 20px;
+                text-align: center;
+                color: #ffffff;
+                font-weight: bold;
+            }}
+            .body {{
+                padding: 30px;
+                color: #333333;
+            }}
+            .body h1 {{
+                color: #2752D8;
+                margin-bottom: 16px;
+                font-size: 22px;
+            }}
+            .body p {{
+                line-height: 1.6;
+                font-size: 16px;
+            }}
+            .button {{
+                display: inline-block;
+                padding: 12px 24px;
+                background-color: #2752D8;
+                color: #ffffff !important;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: bold;
+                transition: background-color 0.2s ease-in-out;
+            }}
+            .button:hover {{
+                background-color: #1f3a99;
+            }}
+            .footer {{
+                background-color: #f4f4f4;
+                padding: 20px;
+                text-align: center;
+                font-size: 14px;
+                color: #777777;
+            }}
+            @media only screen and (max-width: 600px) {{
+                .body, .header, .footer {{
+                    padding: 16px;
+                }}
+                .button {{
+                    width: 100%;
+                    text-align: center;
+                }}
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="header">
+                Wellness
+            </div>
+            <div class="body">
+                <h1>Confirm your appointment</h1>
+                <p>Hello {name},</p>
+                <p>Your appointment is almost set. Please confirm your booking by clicking the button below.</p>
+                <p style="margin: 24px 0;">
+                    <a class="button" href="{prefilled_url}" target="_blank" rel="noopener">Confirm Appointment</a>
+                </p>
+                <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                <p style="word-break: break-all; color: #2752D8;">{prefilled_url}</p>
+            </div>
+            <div class="footer">
+                <p>&copy; Wellness. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    subject = "Confirm Your Appointment"
+    return send_email(to_email, subject, message_html)

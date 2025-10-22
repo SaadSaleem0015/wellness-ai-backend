@@ -20,6 +20,18 @@ TORTOISE_CONFIG = {
             "models": [
                 "models.user",
                 "models.code",
+                "models.calendlytoken",
+                "models.company",
+                "models.lead",
+                "models.purchased_number",
+                "models.call_log",
+                "models.assistant",
+                "models.tool",
+                "models.knowledge_base",
+                "models.file",
+                "models.schedule",
+                "models.patient",
+                "models.appointment",
                 "aerich.models"
             ]
         }
