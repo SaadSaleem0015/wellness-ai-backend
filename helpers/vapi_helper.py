@@ -471,10 +471,13 @@ async def delete_vapi_tool(tool_id):
 
 
 async def get_all_call_list(date):
+    if date:
+       call_list_url = f"https://api.vapi.ai/call?createdAtGt={date}"
+    else:
+      call_list_url = f"https://api.vapi.ai/call"
     headers = {
         "Authorization": f"Bearer {os.environ.get('VAPI_API_KEY')}",
     }
-    call_list_url = f"https://api.vapi.ai/call?createdAtGt={date}"
     call_list = requests.get(call_list_url, headers=headers)
     call_list_json = call_list.json()
 
