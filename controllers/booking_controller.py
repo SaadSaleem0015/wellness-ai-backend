@@ -88,19 +88,49 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
             raise HTTPException(status_code=user_response.status_code, detail=user_response.text)
         user_uri = user_response.json()["resource"]["uri"]
 
-        # Calculate Pacific start/end range
+        # Current time in Pacific Time
         now_pacific = datetime.now(PACIFIC_TZ)
-        start_time_pacific = now_pacific + timedelta(minutes=1)
-        end_time_pacific = (now_pacific + timedelta(days=req.days)).replace(
-            hour=23, minute=59, second=59, microsecond=0
-        )
+        print(f"Current Pacific Time: {now_pacific}")
+        print(f"Requested days: {req.days}")
+
+        # Map days to target date
+        if req.days == 1:
+            # Today: Start from max(current time, 9 AM PDT)
+            target_date = now_pacific
+            start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+            if start_time_pacific < now_pacific:
+                minutes = (now_pacific.minute // 15 + 1) * 15
+                start_time_pacific = now_pacific.replace(minute=0, second=0, microsecond=0) + timedelta(minutes=minutes)
+                if start_time_pacific < now_pacific:
+                    start_time_pacific += timedelta(minutes=15)
+            end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+        elif req.days == 2:
+            # Tomorrow: Start at 9 AM PDT
+            target_date = now_pacific + timedelta(days=1)
+            start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+            end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+        elif req.days == 3:
+            # Day after tomorrow: Start at 9 AM PDT
+            target_date = now_pacific + timedelta(days=2)
+            start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+            end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+        elif req.days == 4:
+            # Day after tomorrow: Start at 9 AM PDT
+            target_date = now_pacific + timedelta(days=3)
+            start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+            end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+        elif req.days == 5:
+            # Day after tomorrow: Start at 9 AM PDT
+            target_date = now_pacific + timedelta(days=4)
+            start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+            end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+        else:
+            raise HTTPException(status_code=400, detail="days must be 1 (today), 2 (tomorrow), or 3 (day after tomorrow)")
 
         # Convert to UTC for Calendly API
         start_time_utc = start_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
         end_time_utc = end_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
-
-        if req.days > 7:
-            raise HTTPException(status_code=400, detail="days cannot exceed 7")
+        print(f"API Request: start_time_utc={start_time_utc}, end_time_utc={end_time_utc}")
 
         # Fetch available times
         response = await client.get(
@@ -118,30 +148,47 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
 
         data = response.json()
         slots = data.get("collection", [])
+        print(f"Raw slots from Calendly: {len(slots)} slots received")
+        for slot in slots:
+            print(f"Raw slot: {slot['start_time']}")
 
         converted_slots = []
         for slot in slots:
             # Convert start_time to Pacific Time
             utc_dt = datetime.fromisoformat(slot["start_time"].replace("Z", "+00:00"))
             pacific_dt = utc_dt.astimezone(PACIFIC_TZ)
-            slot["start_time"] = pacific_dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+            slot_start_time = pacific_dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+            # Skip slots before the current time (only for days=1)
+            if req.days == 1 and pacific_dt < now_pacific:
+                print(f"Skipping past slot: {slot_start_time}")
+                continue
+
+            # Ensure slot is within the target day's 9 AM–5 PM window
+            if pacific_dt < start_time_pacific or pacific_dt > end_time_pacific:
+                print(f"Skipping slot outside target window: {slot_start_time}")
+                continue
 
             # Convert scheduling_url timestamp to Pacific Time
             scheduling_url = slot["scheduling_url"]
             parsed_url = urlparse(scheduling_url)
-            # Extract the path which contains the timestamp
             path_parts = parsed_url.path.split('/')
-            timestamp_str = path_parts[-1]  # e.g., "2025-10-24T16:00:00+00:00"
-            utc_dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            timestamp_str = path_parts[-1]
+            try:
+                utc_dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            except ValueError:
+                print(f"Invalid timestamp in scheduling_url: {timestamp_str}")
+                continue
             pacific_dt = utc_dt.astimezone(PACIFIC_TZ)
             pacific_timestamp = pacific_dt.strftime("%Y-%m-%dT%H:%M:%S%z")
-            # Reconstruct the scheduling_url with Pacific Time
             path_parts[-1] = pacific_timestamp
             new_path = '/'.join(path_parts)
             new_scheduling_url = parsed_url._replace(path=new_path).geturl()
             slot["scheduling_url"] = new_scheduling_url
+            slot["start_time"] = slot_start_time
 
             converted_slots.append(slot)
+            print(f"Included slot: {slot_start_time}")
 
         return {
             "available_slots": converted_slots,
