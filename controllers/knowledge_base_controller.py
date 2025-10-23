@@ -10,7 +10,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from helpers.jwt_token import get_current_user
-from helpers.vapi_helper import delete_from_vapi_file, upload_file_to_vapi
+from helpers.vapi_helper import delete_from_vapi_file, upload_file_to_vapi, create_knowledgebase_tool, delete_vapi_tool
 from models.knowledge_base import Knowledgebase
 from pathlib import Path
 import uuid
@@ -45,6 +45,9 @@ async def upload_file(
         with open(file_path, "wb") as f:
             f.write(file_content)
 
+        # Create knowledge base tool with the uploaded file
+        tool_response = await create_knowledgebase_tool(vapi_file["id"], file.filename)
+        
         metadata = await Knowledgebase.create(
             filename=unique_filename,
             original_filename=file.filename,
@@ -52,10 +55,13 @@ async def upload_file(
             user=user,
             company = company,
             vapi_id=vapi_file["id"],
+            vapi_tool_id=tool_response.get("id") if tool_response else None,
         )
+        
         return {
                 "success": True,
-                "detail": "File is uploaded",
+                "detail": "File is uploaded and query tool created",
+                "tool_id": tool_response.get("id") if tool_response else None,
             }
         
         file_size = os.path.getsize(file_path) / 1024
@@ -122,10 +128,17 @@ async def delete_file(
         if os.path.exists(file_path):
             os.remove(file_path)
 
+        # Delete VAPI file
         delete_vapi_file = await delete_from_vapi_file(metadata.vapi_id)
+        
+        # Delete VAPI tool if it exists
+        if metadata.vapi_tool_id:
+            delete_vapi_tool_result = await delete_vapi_tool(metadata.vapi_tool_id)
+            print(f"Tool deletion result: {delete_vapi_tool_result}")
+        
         await metadata.delete()
 
-        return {"success": True, "message": "File deleted successfully"}
+        return {"success": True, "message": "File and associated tool deleted successfully"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")

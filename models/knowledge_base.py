@@ -7,6 +7,7 @@ from tortoise.contrib.fastapi import register_tortoise
 class Knowledgebase(Model):
     id = fields.IntField(pk=True)
     vapi_id = fields.CharField(max_length=255, null=True)
+    vapi_tool_id = fields.CharField(max_length=255, null=True)
     filename = fields.CharField(max_length=255) 
     original_filename = fields.CharField(max_length=255)  
     upload_date = fields.DatetimeField(default=datetime.utcnow)

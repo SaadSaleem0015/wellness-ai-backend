@@ -32,13 +32,6 @@ async def user_add_payload(assistant_data,user):
         voice_model = "eleven_flash_v2_5"
         
         
-    # Ensure fileIds are strings
-    kb_file_ids = []
-    if getattr(assistant_data, 'knowledgeBase', None):
-        try:
-            kb_file_ids = [str(fid) for fid in assistant_data.knowledgeBase]
-        except Exception:
-            kb_file_ids = []
 
     user_payload = {
         "transcriber": {
@@ -57,11 +50,6 @@ async def user_add_payload(assistant_data,user):
             "model": assistant_data.model,
             "temperature": assistant_data.temperature,
             "toolIds": assistant_data.tools if tools else [],
-            "knowledgeBase": {
-                "provider": "canonical",
-                "topK": 5,
-                "fileIds": kb_file_ids
-            },
             "maxTokens": assistant_data.maxTokens,
         },
         "voice": {
@@ -191,7 +179,6 @@ async def create_query_tool(file_ids, tool_name="Query-Tool"):
             }
         ]
     }
-    print("han a gya ithy" , file_ids , tool_name)
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=headers, json=data)
@@ -208,6 +195,58 @@ async def create_query_tool(file_ids, tool_name="Query-Tool"):
         return None
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        return None
+
+
+async def create_knowledgebase_tool(file_id, filename):
+    """Create a query tool for a specific knowledge base file with naming convention: knowledgebase + filename"""
+    # Clean filename for tool name (remove extension and special characters)
+    import re
+    clean_filename = filename.split('.')[0]
+    # Remove all characters that don't match the regex pattern [a-zA-Z0-9_-]
+    clean_filename = re.sub(r'[^a-zA-Z0-9_-]', '_', clean_filename)
+    # Ensure it doesn't start with a number or underscore
+    if clean_filename and (clean_filename[0].isdigit() or clean_filename[0] == '_'):
+        clean_filename = 'kb_' + clean_filename
+    # Ensure it's not empty and limit to 64 characters
+    if not clean_filename:
+        clean_filename = 'kb_file'
+    tool_name = f"knowledgebase_{clean_filename}"[:64]
+    
+    url = "https://api.vapi.ai/tool/"
+    headers = {
+        "Authorization": f"Bearer {vapi_api_key}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "type": "query",
+        "function": {"name": tool_name},
+        "knowledgeBases": [
+            {
+                "provider": "google",
+                "model": "gemini-2.0-flash-lite",
+                "name": f"kb_{clean_filename}"[:64],
+                "description": f"Knowledge base for {filename}",
+                "fileIds": [file_id]
+            }
+        ]
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=data)
+            print("Knowledge base tool response:", response.json())
+
+            if response.status_code in [200, 201]:
+                return response.json() 
+            else:
+                return None
+
+    except httpx.RequestError as e:
+        print(f"An error occurred while creating knowledge base tool: {e}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred while creating knowledge base tool: {e}")
         return None
 
 
@@ -416,3 +455,27 @@ async def delete_from_vapi_file(id):
     except Exception as e:
         return e
 
+
+async def delete_vapi_tool(tool_id):
+    """Delete a VAPI tool by its ID"""
+    url = f"https://api.vapi.ai/tool/{tool_id}"
+    headers = {
+        "Authorization": f"Bearer {vapi_api_key}",
+        "Content-Type": "application/json",
+    }
+    try:
+        response = requests.delete(url, headers=headers)
+        return response.json()
+    except Exception as e:
+        return e
+
+
+async def get_all_call_list(date):
+    headers = {
+        "Authorization": f"Bearer {os.environ.get('VAPI_API_KEY')}",
+    }
+    call_list_url = f"https://api.vapi.ai/call?createdAtGt={date}"
+    call_list = requests.get(call_list_url, headers=headers)
+    call_list_json = call_list.json()
+
+    return call_list_json

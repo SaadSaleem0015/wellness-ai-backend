@@ -9,6 +9,7 @@ class CallLog(Model):
     call_started_at = fields.DatetimeField(null=True)
     customer_number = fields.CharField(max_length=100 , null=True)
     customer_name= fields.CharField(max_length=100, null =True)
+    type = fields.CharField(max_length=255, null =True)
     call_id =  fields.CharField(max_length=1000, null=True)
     cost =fields.DecimalField(max_digits = 10 , decimal_places = 2,null=True)
     call_ended_at = fields.DatetimeField(null=True)

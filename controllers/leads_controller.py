@@ -101,7 +101,7 @@ async def fetch_ghl_leads(current: Annotated[User, Depends(get_current_user)]):
 @lead_router.get("/ghl_leads")
 async def get_all_leads():
     file = await File.get_or_none(type = "GHL")
-    leads = await Lead.filter(file=file).order_by("-created_at").all()  
+    leads = await Lead.filter(file=file, deleted=False).order_by("-created_at").all()  
     return {
         "success": True,
         "total": len(leads),
@@ -249,6 +249,32 @@ async def delete_file(id: int,current: Annotated[User, Depends(get_current_user)
          raise HTTPException(
             status_code=500,
             detail=f"An unexpected error occurred: {str(e)}"
+        )
+
+@lead_router.delete("/delete/ghl_lead/{id}")
+async def delete_ghl_lead(id: int, current: Annotated[User, Depends(get_current_user)]):
+    """
+    Soft delete a GHL lead by setting deleted=True.
+    """
+    try:
+        user, company = current
+        
+        lead = await Lead.get_or_none(id=id, source="GHL", deleted=False)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found or already deleted.")
+        
+        lead.deleted = True
+        await lead.save()
+
+        return {
+            "success": True,
+            "message": f"Lead with ID {id} marked as deleted."
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while deleting lead: {str(e)}"
         )
 
 

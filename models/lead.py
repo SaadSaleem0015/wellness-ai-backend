@@ -19,5 +19,6 @@ class Lead(Model):
     location_id  = fields.TextField(null = True)
     last_called_at = fields.DatetimeField(null = True)  
     call_count = fields.IntField(null = True , default = 0) 
+    deleted = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

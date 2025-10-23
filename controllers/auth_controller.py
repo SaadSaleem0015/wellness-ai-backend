@@ -123,12 +123,13 @@ async def signin(data: LoginPayload):
             detail="User Not found"
         )
     
-    is_varified = ph.verify(user.password, data.password)
-    if not is_varified:
-           return { 
-            "success": False,
-            "detail":"Invalid password"
-        }
+    try:
+        is_varified = ph.verify(user.password, data.password)
+    except:
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid email or password"
+        )
 
     try:
         token = generate_user_token({ "id": user.id })
@@ -145,8 +146,8 @@ async def signin(data: LoginPayload):
     
     except Exception as e:
         raise HTTPException(
-            status_code=400, 
-            detail= str(e)
+            status_code=500, 
+            detail="Authentication failed. Please try again."
         )
 
     

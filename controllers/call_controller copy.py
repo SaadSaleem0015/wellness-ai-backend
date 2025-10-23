@@ -1,6 +1,5 @@
 import asyncio
 import os
-from datetime import timezone
 from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends,HTTPException
 import httpx
@@ -20,7 +19,6 @@ import httpx
 import requests
 import os
 from models.assistant import Assistant
-from urllib.parse import quote
 
 call_log_router = APIRouter()
 token = generate_token()
@@ -56,10 +54,9 @@ async def get_user_call_logs(user: Annotated[User, Depends(get_current_user)]
         raise HTTPException(status_code=400, detail=f"{str(e)}")
     
 @call_log_router.get("/user/call-logs-detail") 
-async def get_user_call_logs(current: Annotated[User, Depends(get_current_user)]):
+async def get_user_call_logs(user: Annotated[User, Depends(get_current_user)]):
     try:
-        user, company  = current
-        call_logs = await CallLog.filter(company=company).prefetch_related("user").all().order_by("-id")
+        call_logs = await CallLog.filter(user__company=user.company_id).prefetch_related("user").all().order_by("-id")
         
         if not call_logs:  
             return []
@@ -457,28 +454,10 @@ def create_background_task(call_id: str, delay: int, user_id: int, lead_id: Opti
 
 
 @call_log_router.get("/calls-logs")
-async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
+async def update_call_list():
     try:
-        user, company = current
-        last_call_log = await CallLog.all().order_by("id").first()
-            
+        response = await get_all_call_list()
 
-        if last_call_log and last_call_log.call_started_at:
-            createdAtGt_raw = (
-                last_call_log.call_started_at
-                .astimezone(timezone.utc)
-                .isoformat()
-                .replace("+00:00", "Z")
-            )
-
-            createdAtGt = quote(createdAtGt_raw, safe='')
-        else:
-            createdAtGt = None
-
-            
-
-        response = await get_all_call_list(createdAtGt)
-        # return response
         for call_data in response:
             existing_entry = await CallLog.filter(call_id=call_data["id"]).first()
             if existing_entry:
@@ -525,28 +504,14 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                     call_ended_reason=call_data.get("endedReason"),
                     is_transferred=False,
                     criteria_satisfied=False,
-                    type=call_data.get("type", None),
                     recording_url=call_data.get("recordingUrl"),
                     transcript=call_data.get("transcript"),
                 )
-            
+
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Error saving data: {str(e)}")
-        call_logs = await CallLog.filter(company = company).prefetch_related("user").all()
-        
-        if not call_logs:
-            return []
 
-        return [{"id": log.id,
-                 "call_id": log.call_id,
-                 "call_started_at": log.call_started_at.isoformat() if log.call_started_at else None,
-                 "call_ended_at": log.call_ended_at.isoformat() if log.call_ended_at else None,
-                 "cost": str(log.cost) if log.cost else None,
-                 "customer_number": log.customer_number,
-                 "customer_name": log.customer_name,
-                 "call_ended_reason": log.call_ended_reason,
-                 "lead_id":log.lead_id
-                } for log in call_logs]
+        return {"status": True, "message": "Call logs updated successfully."}
 
     except Exception as e:
         print("Error:", e)

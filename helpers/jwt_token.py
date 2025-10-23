@@ -9,12 +9,16 @@ security = HTTPBearer()
 
 def generate_user_token(payload: dict):
     jwt_key = os.getenv("JWT_SECRET")
+    if not jwt_key:
+        raise ValueError("JWT_SECRET environment variable is not set")
     token = jwt.encode(payload, jwt_key, algorithm='HS256')
     return token
 
 def decode_user_token(token: str):
     try:
         jwt_key = os.getenv("JWT_SECRET")
+        if not jwt_key:
+            raise ValueError("JWT_SECRET environment variable is not set")
         return jwt.decode(token, jwt_key, algorithms=['HS256'])
     except:
         raise HTTPException(status_code=401, detail="Invalid Token")

@@ -36,9 +36,6 @@ class AssistantCreate(BaseModel):
     first_message: str
     model: str
     systemPrompt: str
-    knowledgeBase:Optional[list] = Field(
-        default=None, description="Knowledegebase attached to the assistant"
-    )
     leadsfile : Optional[List[int]] = []
     temperature: float
     maxTokens: int
@@ -86,15 +83,6 @@ async def create_assistant(assistant_data: AssistantCreate, current: User = Depe
         empty_fields = [field for field in required_fields if not getattr(assistant_data, field, None)]
         if empty_fields:
             raise HTTPException(status_code=400, detail=f"All fields are required. Empty fields: {', '.join(empty_fields)}")
-        if assistant_data.knowledgeBase and len(assistant_data.knowledgeBase) > 0:
-                tool_name = f"Knowledgebase_{assistant_data.name.replace(' ', '_')}"
-
-                tools = await create_query_tool(assistant_data.knowledgeBase , tool_name)
-                print("tools", tools)
-                if "tools" in assistant_data:
-                    assistant_data.tools.append(tools["id"])
-                else:
-                    assistant_data.tools = [tools["id"]]
         payload_data =await user_add_payload(assistant_data,user)
         
         headers = get_headers()  
@@ -117,7 +105,6 @@ async def create_assistant(assistant_data: AssistantCreate, current: User = Depe
                 first_message=assistant_data.first_message,
                 model=assistant_data.model,
                 systemPrompt=assistant_data.systemPrompt,
-                knowledgeBase=assistant_data.knowledgeBase, 
                 leadsfile = assistant_data.leadsfile,
                 temperature=assistant_data.temperature,
                 maxTokens=assistant_data.maxTokens,
@@ -251,14 +238,6 @@ async def update_assistant(assistant_id: str, assistant: AssistantCreate, curren
         existing_assistant = await Assistant.get_or_none(id=assistant_id)
         if not existing_assistant:
             raise HTTPException(status_code=404, detail='Assistant not found')
-        # Mirror create flow: compute tools from knowledgeBase if provided
-        if assistant.knowledgeBase and len(assistant.knowledgeBase) > 0:
-            tools = await create_vapi_tool(assistant.knowledgeBase)
-            if tools and tools.get("id"):
-                if assistant.tools:
-                    assistant.tools.append(tools["id"])
-                else:
-                    assistant.tools = [tools["id"]]
 
         # Build payload via same helper used in create
         payload_data = await user_add_payload(assistant, user)
@@ -300,7 +279,6 @@ async def update_assistant(assistant_id: str, assistant: AssistantCreate, curren
         existing_assistant.first_message = assistant.first_message
         existing_assistant.model = assistant.model
         existing_assistant.systemPrompt = assistant.systemPrompt
-        existing_assistant.knowledgeBase = assistant.knowledgeBase
         existing_assistant.temperature = assistant.temperature
         existing_assistant.maxTokens = assistant.maxTokens
         existing_assistant.transcribe_provider = assistant.transcribe_provider
