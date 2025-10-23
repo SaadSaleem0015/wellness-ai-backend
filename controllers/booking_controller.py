@@ -8,7 +8,8 @@ import os
 import hmac
 import hashlib
 import base64
-from urllib.parse import urlencode
+from urllib.parse import urlparse, parse_qs, urlencode
+import pytz
 from helpers.email import send_booking_confirmation_email
 from models.patient import Patient
 from models.appointment import Appointment, AppointmentStatus
@@ -65,13 +66,20 @@ class AvailabilityRequest(BaseModel):
     event_type_uri: str  
     days: int = 1 
 
+PACIFIC_TZ = pytz.timezone("America/Los_Angeles")
+
 
 @booking_router.post("/availability")
 async def check_availability(req: AvailabilityRequest, token: str = Depends(get_access_token)):
+    print("----------------")
     if not req.event_type_uri.startswith("https://api.calendly.com/event_types/"):
-        raise HTTPException(status_code=400, detail="event_type_uri must be a full URI (e.g., https://api.calendly.com/event_types/{uuid})")
-    print("req days---------", req.days)
+        raise HTTPException(
+            status_code=400, 
+            detail="event_type_uri must be a full URI (e.g., https://api.calendly.com/event_types/{uuid})"
+        )
+
     async with httpx.AsyncClient() as client:
+        # Get Calendly user
         user_response = await client.get(
             f"{CALENDLY_BASE_URL}/users/me",
             headers={"Authorization": f"Bearer {token}"}
@@ -79,30 +87,68 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
         if user_response.status_code != 200:
             raise HTTPException(status_code=user_response.status_code, detail=user_response.text)
         user_uri = user_response.json()["resource"]["uri"]
-        
-        now = datetime.utcnow()
-        start_time = (now + timedelta(minutes=1)).isoformat() + "Z"
-        end_time = (now + timedelta(days=req.days)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat() + "Z"
-        
+
+        # Calculate Pacific start/end range
+        now_pacific = datetime.now(PACIFIC_TZ)
+        start_time_pacific = now_pacific + timedelta(minutes=1)
+        end_time_pacific = (now_pacific + timedelta(days=req.days)).replace(
+            hour=23, minute=59, second=59, microsecond=0
+        )
+
+        # Convert to UTC for Calendly API
+        start_time_utc = start_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
+        end_time_utc = end_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
+
         if req.days > 7:
             raise HTTPException(status_code=400, detail="days cannot exceed 7")
-        
+
+        # Fetch available times
         response = await client.get(
             f"{CALENDLY_BASE_URL}/event_type_available_times",
             headers={"Authorization": f"Bearer {token}"},
             params={
                 "event_type": req.event_type_uri,
-                "start_time": start_time,
-                "end_time": end_time,
+                "start_time": start_time_utc,
+                "end_time": end_time_utc,
                 "user": user_uri
             },
         )
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.json())
+
         data = response.json()
         slots = data.get("collection", [])
-        return {"available_slots": slots, "start_time": start_time, "end_time": end_time}  # Include times for debugging
 
+        converted_slots = []
+        for slot in slots:
+            # Convert start_time to Pacific Time
+            utc_dt = datetime.fromisoformat(slot["start_time"].replace("Z", "+00:00"))
+            pacific_dt = utc_dt.astimezone(PACIFIC_TZ)
+            slot["start_time"] = pacific_dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+            # Convert scheduling_url timestamp to Pacific Time
+            scheduling_url = slot["scheduling_url"]
+            parsed_url = urlparse(scheduling_url)
+            # Extract the path which contains the timestamp
+            path_parts = parsed_url.path.split('/')
+            timestamp_str = path_parts[-1]  # e.g., "2025-10-24T16:00:00+00:00"
+            utc_dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            pacific_dt = utc_dt.astimezone(PACIFIC_TZ)
+            pacific_timestamp = pacific_dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+            # Reconstruct the scheduling_url with Pacific Time
+            path_parts[-1] = pacific_timestamp
+            new_path = '/'.join(path_parts)
+            new_scheduling_url = parsed_url._replace(path=new_path).geturl()
+            slot["scheduling_url"] = new_scheduling_url
+
+            converted_slots.append(slot)
+
+        return {
+            "available_slots": converted_slots,
+            "timezone": "America/Los_Angeles",
+            "start_time": start_time_pacific.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "end_time": end_time_pacific.strftime("%Y-%m-%dT%H:%M:%S%z")
+        }
 class AppointmentBookingRequest(BaseModel):
     event_type_uri: str
     name: str
