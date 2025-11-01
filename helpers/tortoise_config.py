@@ -34,6 +34,8 @@ TORTOISE_CONFIG = {
                 "models.appointment",
                 "models.content",
                 "models.availablityblock",
+                "models.chat",
+                "models.chat_message",
                 "aerich.models"
             ]
         }
