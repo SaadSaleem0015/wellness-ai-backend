@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
-
-from controllers.knowledge_base_controller import kb_router
 load_dotenv()
+from controllers.knowledge_base_controller import kb_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from helpers.tortoise_config import lifespan
@@ -14,7 +13,8 @@ from controllers.twilio_controller import twilio_router
 from controllers.dashboard_controller import dashboard_router
 from controllers.schedule_controller import schedule_router
 from controllers.call_controller import call_log_router
-
+from controllers.call_controller import call_log_router
+from controllers.chatbot_controller import chatbotrouter
 
 
 
@@ -43,6 +43,7 @@ app.include_router(twilio_router,prefix='/api', tags=['Phone Number'])
 app.include_router(dashboard_router,prefix='/api', tags=['Dashboard'])
 app.include_router(schedule_router,prefix='/api', tags=['Schedule'])
 app.include_router(call_log_router,prefix='/api', tags=['Call'])
+app.include_router(chatbotrouter,prefix='/api', tags=['Chatbot'])
 
 
 

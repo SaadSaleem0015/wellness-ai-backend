@@ -714,6 +714,7 @@ async def get_patient_appointments_by_phone(
     # Find patient by phone number
     patient = await Patient.filter(phone=request.phone).first()
     if not patient:
+        print("Patient not found for phone:", request.phone)
         raise HTTPException(status_code=404, detail=f"Patient with phone number {request.phone} not found")
     
     # Get appointments for this patient
@@ -733,6 +734,7 @@ async def get_patient_appointments_by_phone(
             "cancel_url": appointment.cancel_url,
             "created_at": appointment.created_at.isoformat()
         })
+    print("Found appointments:", len(result))
     
     return {
         "patient": {
