@@ -1,8 +1,8 @@
 import asyncio
-from typing import Dict
+from typing import Dict, List
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime, timedelta , timezone
 import os
 import hmac
@@ -11,6 +11,7 @@ import base64
 from urllib.parse import urlparse, parse_qs, urlencode
 import pytz
 from helpers.email import send_booking_confirmation_email
+from models.availablityblock import AvailabilityBlock
 from models.patient import Patient
 from models.appointment import Appointment, AppointmentStatus
 class PatientInfoRequest(BaseModel):
@@ -30,6 +31,14 @@ async def get_access_token():
     if not CALENDLY_PAT:
         raise HTTPException(status_code=401, detail="No PAT configured.")
     return CALENDLY_PAT
+async def get_blocked_slots_from_db(date: str) -> set[str]:
+    record = await AvailabilityBlock.get_or_none(date=date)
+    print("record--------------------", record)
+    if record is None:
+        return set()
+    blocked_list = record.blocked_slots  
+    print(f"✅ DEBUG: blocked_list={blocked_list[:3]}... (type={type(blocked_list)})")
+    return set(blocked_list)
 
 @booking_router.get("/test-token")
 async def test_token(token: str = Depends(get_access_token)):
@@ -68,10 +77,8 @@ class AvailabilityRequest(BaseModel):
 
 PACIFIC_TZ = pytz.timezone("America/Los_Angeles")
 
-
 @booking_router.post("/availability")
 async def check_availability(req: AvailabilityRequest, token: str = Depends(get_access_token)):
-    print("----------------")
     if not req.event_type_uri.startswith("https://api.calendly.com/event_types/"):
         raise HTTPException(
             status_code=400, 
@@ -90,8 +97,6 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
 
         # Current time in Pacific Time
         now_pacific = datetime.now(PACIFIC_TZ)
-        print(f"Current Pacific Time: {now_pacific}")
-        print(f"Requested days: {req.days}")
 
         # Map days to target date
         if req.days == 1:
@@ -130,7 +135,6 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
         # Convert to UTC for Calendly API
         start_time_utc = start_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
         end_time_utc = end_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
-        print(f"API Request: start_time_utc={start_time_utc}, end_time_utc={end_time_utc}")
 
         # Fetch available times
         response = await client.get(
@@ -148,28 +152,23 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
 
         data = response.json()
         slots = data.get("collection", [])
-        print(f"Raw slots from Calendly: {len(slots)} slots received")
         for slot in slots:
             print(f"Raw slot: {slot['start_time']}")
 
         converted_slots = []
+        date_str = target_date.strftime("%Y-%m-%d")
+        blocked_set = await get_blocked_slots_from_db(date_str)
         for slot in slots:
-            # Convert start_time to Pacific Time
             utc_dt = datetime.fromisoformat(slot["start_time"].replace("Z", "+00:00"))
             pacific_dt = utc_dt.astimezone(PACIFIC_TZ)
             slot_start_time = pacific_dt.strftime("%Y-%m-%dT%H:%M:%S%z")
 
-            # Skip slots before the current time (only for days=1)
             if req.days == 1 and pacific_dt < now_pacific:
-                print(f"Skipping past slot: {slot_start_time}")
                 continue
 
-            # Ensure slot is within the target day's 9 AM–5 PM window
             if pacific_dt < start_time_pacific or pacific_dt > end_time_pacific:
-                print(f"Skipping slot outside target window: {slot_start_time}")
                 continue
 
-            # Convert scheduling_url timestamp to Pacific Time
             scheduling_url = slot["scheduling_url"]
             parsed_url = urlparse(scheduling_url)
             path_parts = parsed_url.path.split('/')
@@ -177,7 +176,6 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
             try:
                 utc_dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
             except ValueError:
-                print(f"Invalid timestamp in scheduling_url: {timestamp_str}")
                 continue
             pacific_dt = utc_dt.astimezone(PACIFIC_TZ)
             pacific_timestamp = pacific_dt.strftime("%Y-%m-%dT%H:%M:%S%z")
@@ -186,9 +184,10 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
             new_scheduling_url = parsed_url._replace(path=new_path).geturl()
             slot["scheduling_url"] = new_scheduling_url
             slot["start_time"] = slot_start_time
-
+            slot_time = pacific_dt.strftime("%H:%M")  # "10:00"
+            if slot_time in blocked_set:
+                continue
             converted_slots.append(slot)
-            print(f"Included slot: {slot_start_time}")
 
         return {
             "available_slots": converted_slots,
@@ -196,6 +195,126 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
             "start_time": start_time_pacific.strftime("%Y-%m-%dT%H:%M:%S%z"),
             "end_time": end_time_pacific.strftime("%Y-%m-%dT%H:%M:%S%z")
         }
+# @booking_router.post("/availability")
+# async def check_availability(req: AvailabilityRequest, token: str = Depends(get_access_token)):
+#     print("----------------")
+#     if not req.event_type_uri.startswith("https://api.calendly.com/event_types/"):
+#         raise HTTPException(
+#             status_code=400, 
+#             detail="event_type_uri must be a full URI (e.g., https://api.calendly.com/event_types/{uuid})"
+#         )
+
+#     async with httpx.AsyncClient() as client:
+#         # Get Calendly user
+#         user_response = await client.get(
+#             f"{CALENDLY_BASE_URL}/users/me",
+#             headers={"Authorization": f"Bearer {token}"}
+#         )
+#         if user_response.status_code != 200:
+#             raise HTTPException(status_code=user_response.status_code, detail=user_response.text)
+#         user_uri = user_response.json()["resource"]["uri"]
+
+#         # Current time in Pacific Time
+#         now_pacific = datetime.now(PACIFIC_TZ)
+
+#         # Map days to target date
+#         if req.days == 1:
+#             # Today: Start from max(current time, 9 AM PDT)
+#             target_date = now_pacific
+#             start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+#             if start_time_pacific < now_pacific:
+#                 minutes = (now_pacific.minute // 15 + 1) * 15
+#                 start_time_pacific = now_pacific.replace(minute=0, second=0, microsecond=0) + timedelta(minutes=minutes)
+#                 if start_time_pacific < now_pacific:
+#                     start_time_pacific += timedelta(minutes=15)
+#             end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+#         elif req.days == 2:
+#             # Tomorrow: Start at 9 AM PDT
+#             target_date = now_pacific + timedelta(days=1)
+#             start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+#             end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+#         elif req.days == 3:
+#             # Day after tomorrow: Start at 9 AM PDT
+#             target_date = now_pacific + timedelta(days=2)
+#             start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+#             end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+#         elif req.days == 4:
+#             # Day after tomorrow: Start at 9 AM PDT
+#             target_date = now_pacific + timedelta(days=3)
+#             start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+#             end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+#         elif req.days == 5:
+#             # Day after tomorrow: Start at 9 AM PDT
+#             target_date = now_pacific + timedelta(days=4)
+#             start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+#             end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+#         else:
+#             raise HTTPException(status_code=400, detail="days must be 1 (today), 2 (tomorrow), or 3 (day after tomorrow)")
+
+#         # Convert to UTC for Calendly API
+#         start_time_utc = start_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
+#         end_time_utc = end_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
+
+#         # Fetch available times
+#         response = await client.get(
+#             f"{CALENDLY_BASE_URL}/event_type_available_times",
+#             headers={"Authorization": f"Bearer {token}"},
+#             params={
+#                 "event_type": req.event_type_uri,
+#                 "start_time": start_time_utc,
+#                 "end_time": end_time_utc,
+#                 "user": user_uri
+#             },
+#         )
+#         if response.status_code != 200:
+#             raise HTTPException(status_code=response.status_code, detail=response.json())
+
+#         data = response.json()
+#         slots = data.get("collection", [])
+#         for slot in slots:
+#             print(f"Raw slot: {slot['start_time']}")
+
+#         converted_slots = []
+#         for slot in slots:
+#             utc_dt = datetime.fromisoformat(slot["start_time"].replace("Z", "+00:00"))
+#             pacific_dt = utc_dt.astimezone(PACIFIC_TZ)
+#             slot_start_time = pacific_dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+#             if req.days == 1 and pacific_dt < now_pacific:
+#                 print(f"Skipping past slot: {slot_start_time}")
+#                 continue
+
+#             if pacific_dt < start_time_pacific or pacific_dt > end_time_pacific:
+#                 print(f"Skipping slot outside target window: {slot_start_time}")
+#                 continue
+
+#             # Convert scheduling_url timestamp to Pacific Time
+#             scheduling_url = slot["scheduling_url"]
+#             parsed_url = urlparse(scheduling_url)
+#             path_parts = parsed_url.path.split('/')
+#             timestamp_str = path_parts[-1]
+#             try:
+#                 utc_dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+#             except ValueError:
+#                 print(f"Invalid timestamp in scheduling_url: {timestamp_str}")
+#                 continue
+#             pacific_dt = utc_dt.astimezone(PACIFIC_TZ)
+#             pacific_timestamp = pacific_dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+#             path_parts[-1] = pacific_timestamp
+#             new_path = '/'.join(path_parts)
+#             new_scheduling_url = parsed_url._replace(path=new_path).geturl()
+#             slot["scheduling_url"] = new_scheduling_url
+#             slot["start_time"] = slot_start_time
+
+#             converted_slots.append(slot)
+#             print(f"Included slot: {slot_start_time}")
+
+#         return {
+#             "available_slots": converted_slots,
+#             "timezone": "America/Los_Angeles",
+#             "start_time": start_time_pacific.strftime("%Y-%m-%dT%H:%M:%S%z"),
+#             "end_time": end_time_pacific.strftime("%Y-%m-%dT%H:%M:%S%z")
+#         }
 class AppointmentBookingRequest(BaseModel):
     event_type_uri: str
     name: str
@@ -813,3 +932,61 @@ async def get_appointment_detail(
         #         patient_data["cancel_url"] = f"Error canceling: {cancel_resp.text}"
         
         return patient_data
+
+
+
+
+
+
+
+
+
+class UpdateSlotRequest(BaseModel):
+    date: str          # "2025-01-05"
+    slot: str          # "14:30"
+    action: str   
+
+@booking_router.post("/update-slot")
+async def update_slot(req: UpdateSlotRequest):
+    if req.action not in ["block", "unblock"]:
+        raise HTTPException(status_code=400, detail="action must be add or remove")
+    try:
+        datetime.strptime(req.date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD")
+
+    record = await AvailabilityBlock.get_or_none(date=req.date)
+
+    if not record:
+        record = await AvailabilityBlock.create(date=req.date, blocked_slots=[])
+
+    blocked = set(record.blocked_slots) if record.blocked_slots else set()
+
+    if req.action == "block":
+        blocked.add(req.slot)
+    elif req.action == "unblock":
+        blocked.discard(req.slot)
+
+    record.blocked_slots = list(blocked)
+    await record.save()
+
+    return {
+        "message": "Updated successfully",
+        "date": req.date,
+        "blocked_slots": record.blocked_slots
+    }
+
+
+@booking_router.get("/blocked/{date}")
+async def get_blocked_slots(date: str):
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD")
+
+    record = await AvailabilityBlock.get_or_none(date=date)
+
+    return {
+        "date": date,
+        "blocked_slots": record.blocked_slots if record else []
+    }

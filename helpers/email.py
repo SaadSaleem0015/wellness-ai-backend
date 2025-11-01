@@ -179,7 +179,7 @@ def send_confirmation_email(to_email: str, code: Union[str, int]):
             <!-- Body Section -->
             <div class="body">
                 <h1>Hello,</h1>
-                <p>Please Enter the following verification code to log into Legal AI</p>
+                <p>Please Enter the following verification code to log into Wellness Diagnostics and Medispa</p>
                 <div class="code-box">
                     {code}
                 </div>                
@@ -193,7 +193,7 @@ def send_confirmation_email(to_email: str, code: Union[str, int]):
     
             <!-- Footer Section -->
             <div class="footer">
-                <p>&copy; Legal AI. All rights reserved.</p>
+                <p>&copy; Wellness Diagnostics and Medispa. All rights reserved.</p>
                
             </div>
         </div>
@@ -308,7 +308,7 @@ def send_reset_email(to_email: str, code: Union[str, int]):
             <!-- Body Section -->
             <div class="body">
                 <h1>Hello,</h1>
-                <p>You have requested to reset your password for your <strong>Legal AI</strong> account. Please use the reset code below to proceed:</p>
+                <p>You have requested to reset your password for your <strong>Wellness Diagnostics and Medispa</strong> account. Please use the reset code below to proceed:</p>
                 
                 <div class="code-box">
                     {code}
@@ -320,7 +320,7 @@ def send_reset_email(to_email: str, code: Union[str, int]):
     
             <!-- Footer Section -->
             <div class="footer">
-                <p>&copy; Legal AI. All rights reserved.</p>
+                <p>&copy; Wellness Diagnostics and Medispa. All rights reserved.</p>
                 
             </div>
         </div>
@@ -409,7 +409,7 @@ def send_booking_confirmation_email(to_email: str, name: str, prefilled_url: str
     <body>
         <div class="email-container">
             <div class="header">
-                Wellness
+                Wellness Diagnostics and Medispa
             </div>
             <div class="body">
                 <h1>Confirm your appointment</h1>
@@ -422,7 +422,7 @@ def send_booking_confirmation_email(to_email: str, name: str, prefilled_url: str
                 <p style="word-break: break-all; color: #2752D8;">{prefilled_url}</p>
             </div>
             <div class="footer">
-                <p>&copy; Wellness. All rights reserved.</p>
+                <p>&copy; Wellness Diagnostics and Medispa. All rights reserved.</p>
             </div>
         </div>
     </body>

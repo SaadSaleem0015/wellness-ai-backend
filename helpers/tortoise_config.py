@@ -32,6 +32,8 @@ TORTOISE_CONFIG = {
                 "models.schedule",
                 "models.patient",
                 "models.appointment",
+                "models.content",
+                "models.availablityblock",
                 "aerich.models"
             ]
         }

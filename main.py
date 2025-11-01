@@ -14,7 +14,7 @@ from controllers.twilio_controller import twilio_router
 from controllers.dashboard_controller import dashboard_router
 from controllers.schedule_controller import schedule_router
 from controllers.call_controller import call_log_router
-
+from controllers.content_controller import content_router
 
 
 
@@ -43,6 +43,8 @@ app.include_router(twilio_router,prefix='/api', tags=['Phone Number'])
 app.include_router(dashboard_router,prefix='/api', tags=['Dashboard'])
 app.include_router(schedule_router,prefix='/api', tags=['Schedule'])
 app.include_router(call_log_router,prefix='/api', tags=['Call'])
+app.include_router(content_router,prefix='/api', tags=['Call'])
+
 
 
 
