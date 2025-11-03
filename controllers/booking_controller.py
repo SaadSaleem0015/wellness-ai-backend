@@ -365,7 +365,7 @@ async def book_appointment(req: BookingRequest, token: str = Depends(get_access_
             send_booking_confirmation_email(req.email, req.name, prefilled_url)
         except Exception as e:
             print("Email send failed:", e)
-        
+        print("booking_url:", prefilled_url)
         return {
             "booking_url": prefilled_url, 
             "message": "Send this link to patient for confirmation.",

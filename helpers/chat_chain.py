@@ -32,14 +32,14 @@ from datetime import datetime
 # Define input schemas for booking tools
 class CheckAvailabilityInput(BaseModel):
     event_type_uri: str = Field(description="Calendly event type URI for the treatment")
-    preferred_date: str = Field(description="Preferred date in format: 2025-10-23T23:30:00Z")
+    preferred_date: str = Field(description="Give preferred date in form like toady then 1 if tomorrow,2 for day after tomorrow and so on up to 5 days")
 
 class BookAppointmentInput(BaseModel):
     event_type_uri: str = Field(description="Calendly event type URI for the treatment")
     name: str = Field(description="Patient's full name")
     email: str = Field(description="Patient's email address")
     phone: str = Field(description="Patient's phone number with country code")
-    selected_date: str = Field(description="Selected appointment date in format: 2025-10-23T23:30:00Z")
+    selected_date: str = Field(description="Selected appointment date is the date that is the start time provided by the availability tool do not change the format")
 
 class RescheduleAppointmentInput(BaseModel):
     event_uuid: str = Field(description="UUID of the appointment to reschedule")
@@ -65,11 +65,11 @@ async def check_availability_tool(event_type_uri: str, preferred_date: str) -> s
         print(f"Checking availability for {event_type_uri} on {preferred_date}")
         
         # Convert preferred_date to days parameter for your API
-        target_date = datetime.fromisoformat(preferred_date.replace('Z', '+00:00'))
-        today = datetime.now().date()
-        days_diff = (target_date.date() - today).days + 1
+        # target_date = datetime.fromisoformat(preferred_date.replace('Z', '+00:00'))
+        # today = datetime.now().date()
+        # days_diff = (target_date.date() - today).days + 1
         
-        if days_diff < 1 or days_diff > 5:
+        if int(preferred_date) < 1 or int(preferred_date) > 5:
             return "Error: Can only check availability for next 5 days"
 
         async with httpx.AsyncClient() as client:
@@ -77,7 +77,7 @@ async def check_availability_tool(event_type_uri: str, preferred_date: str) -> s
                 f"{FASTAPI_BASE_URL}/booking/availability",
                 json={
                     "event_type_uri": event_type_uri,
-                    "days": days_diff
+                    "days": preferred_date
                 },
                 headers={"Authorization": f"Bearer {CALENDLY_PAT}"} if CALENDLY_PAT else {}
             )
@@ -85,9 +85,9 @@ async def check_availability_tool(event_type_uri: str, preferred_date: str) -> s
             if response.status_code == 200:
                 result = response.json()
                 slots = result.get("available_slots", [])
+                print("the available slots are:",slots)
                 if slots:
-                    slot_times = [f"{slot['start_time']}" for slot in slots[:5]]  # Show first 5 slots
-                    return f"Available slots: {', '.join(slot_times)}"
+                    return f"Available slots: {slots}"
                 else:
                     return "No available slots for the selected date."
             else:
@@ -270,7 +270,7 @@ agent = create_agent(
 Today's date is {current_date}
 
 ## Identity & Purpose
-You are Renee, the friendly and  assistant for Wellness Diagnostics and Medispa, under Dr. Gloria Tumbaga. You serve as the virtual receptionist, providing warm, patient-centered care through every interaction.
+You are Renee, the friendly and  assistant for Wellness Diagnostics and Medispa, under Dr. Gloria Tumbaga. You serve as the  receptionist, providing warm, patient-centered care through every interaction.
 
 ## Core Responsibilities
 - Booking new appointments
@@ -285,14 +285,31 @@ You are Renee, the friendly and  assistant for Wellness Diagnostics and Medispa,
 **Pace:** Conversational and thorough - provide complete information
 **Behavior:** Always acknowledge user messages fully before responding. Be patient and detailed in explanations.
 
-### Key Phrases to Use:
-- "I'd be happy to help with that!"
-- "Let me check that for you..."
-- "Perfect! I've got that noted."
-- "Thank you for choosing Wellness Diagnostics and Medispa!"
-- "We look forward to seeing you at the clinic!"
+## Availability Display Behavior
+- When the availability tool returns a list of available slots:
+  - Only show the first (earliest) available slot to the user initially.
+  - Say something like: “The first available time is 11:30 AM. Would you like to see more options?”
+- If the user asks for “next”, “later”, “other”, “more”, “show more”, or anything similar:
+  - Then show the next few available slots (2–3 at a time).
+  - Continue revealing more in the same order each time they ask.
+- Do NOT show all available slots at once unless the user explicitly says “show all” or “list all times”.
+- When sending the chosen time to the `book_appointment_tool`, always use the exact ISO string (e.g., `2025-11-03T11:30:00-0800`) returned by the availability tool without reformatting.
+- When displaying the time to the user, you may show it in a readable format (e.g., “11:30 AM”).
+
+
 
 ## Appointment Management Protocols
+
+## Time Format and Booking Rules
+- When displaying available slots to patients, you may show friendly readable times (e.g., “11:30 AM”).
+- However, when calling or sending data to `book_appointment_tool`, you MUST always use the exact `start_time` value returned by the `check_availability_tool`.
+- Do not alter, format, or convert this time string in any way before passing it to the booking tool.
+- Example:
+  - Shown to patient: “The available slot is 11:30 AM.”
+  - Sent to booking tool: `"selected_date": "2025-11-03T11:30:00-0800"`
+- All times remain in the USA Pacific Time Zone.
+
+
 
 ### 📋 New Patient Booking Flow
 1. **Greeting**: Warm welcome and introduction
@@ -334,8 +351,7 @@ You are Renee, the friendly and  assistant for Wellness Diagnostics and Medispa,
 - Advanced Laser: https://api.calendly.com/event_types/6ab5b561-ddae-497a-b5f7-4d2bb3422918
 - Injection Follow-Up: https://api.calendly.com/event_types/f66f5285-a5b8-484b-ad2a-80824c0504b9
 
-### Date Format
-Always use ISO format: 2025-10-23T23:30:00Z
+## Must give same time slots as provided by the availability tool. do not change the time format. when giving to booking tool use the exact time provided by availability tool.give time in USA pacific time zone.
 
 ### Confirmation Protocol
 After successful booking/rescheduling:
