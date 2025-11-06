@@ -84,7 +84,7 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
             status_code=400, 
             detail="event_type_uri must be a full URI (e.g., https://api.calendly.com/event_types/{uuid})"
         )
-
+    print("req", req)
     async with httpx.AsyncClient() as client:
         # Get Calendly user
         user_response = await client.get(
@@ -120,23 +120,38 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
             start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
             end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
         elif req.days == 4:
-            # Day after tomorrow: Start at 9 AM PDT
+            # 2 Day after tomorrow: Start at 9 AM PDT
             target_date = now_pacific + timedelta(days=3)
             start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
             end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
         elif req.days == 5:
-            # Day after tomorrow: Start at 9 AM PDT
+            # 3 Day after tomorrow: Start at 9 AM PDT
             target_date = now_pacific + timedelta(days=4)
             start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
             end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+        elif req.days == 6:
+            # 4 Day after tomorrow: Start at 9 AM PDT
+            target_date = now_pacific + timedelta(days=5)
+            start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+            end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+        elif req.days == 7:
+            # 5 Day after tomorrow: Start at 9 AM PDT
+            target_date = now_pacific + timedelta(days=6)
+            start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+            end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
+        elif req.days == 8:
+            # 6 Day after tomorrow: Start at 9 AM PDT
+            target_date = now_pacific + timedelta(days=7)
+            start_time_pacific = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+            end_time_pacific = target_date.replace(hour=17, minute=0, second=0, microsecond=0)
         else:
-            raise HTTPException(status_code=400, detail="days must be 1 (today), 2 (tomorrow), or 3 (day after tomorrow)")
+            raise HTTPException(status_code=400, detail="days must be 1 (today), 2 (tomorrow), 3 (2 day after tomorrow), 4 (3 day after tomorrow), 5 (4 day after tomorrow), 6 (5 day after tomorrow), or 7 (6 day after tomorrow)")
 
         # Convert to UTC for Calendly API
         start_time_utc = start_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
         end_time_utc = end_time_pacific.astimezone(pytz.utc).isoformat().replace("+00:00", "Z")
-
         # Fetch available times
+        print("start_time_utc", start_time_utc)
         response = await client.get(
             f"{CALENDLY_BASE_URL}/event_type_available_times",
             headers={"Authorization": f"Bearer {token}"},
@@ -147,6 +162,7 @@ async def check_availability(req: AvailabilityRequest, token: str = Depends(get_
                 "user": user_uri
             },
         )
+        print("response", response.json())
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.json())
 

@@ -336,6 +336,13 @@ async def assistant_payload(assistant_data,company_id):
             "model":voice_model,
         },
         "name": assistant_data.name,
+        #   "hooks": [
+        #   {
+        #     "on": "customer.speech.timeout",
+        #     "options": { "timeoutSeconds": 5 },
+        #     "do": [{ "type": "say", "exact": "Are you still there?" }]
+        #     }
+        # ],
         "firstMessage": assistant_data.first_message,
         "endCallPhrases": assistant_data.endCallPhrases,
         "analysisPlan": {
@@ -345,10 +352,6 @@ async def assistant_payload(assistant_data,company_id):
         "provider": "twilio",
         "voicemailDetectionTypes": ["machine_end_beep", "machine_end_silence"],
         "enabled": True,
-        "machineDetectionTimeout": 3,
-        "machineDetectionSpeechThreshold": 1000,
-        "machineDetectionSpeechEndThreshold": 500,
-        "machineDetectionSilenceTimeout": 2000
         }
             }
 

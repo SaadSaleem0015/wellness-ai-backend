@@ -44,7 +44,7 @@ app.include_router(twilio_router,prefix='/api', tags=['Phone Number'])
 app.include_router(dashboard_router,prefix='/api', tags=['Dashboard'])
 app.include_router(schedule_router,prefix='/api', tags=['Schedule'])
 app.include_router(call_log_router,prefix='/api', tags=['Call'])
-app.include_router(content_router,prefix='/api', tags=['Call'])
+app.include_router(content_router,prefix='/api', tags=['Content'])
 
 app.include_router(chatbotrouter,prefix='/api', tags=['Chatbot'])
 

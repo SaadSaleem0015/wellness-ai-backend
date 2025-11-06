@@ -37,6 +37,45 @@ SD_VIDEO_API_URL = "https://modelslab.com/api/v6/video/text2video"
 SD_API_KEY = "vYUMxZEDSb4ybW8pjXyNLZis2DeOQOWbTRUx0OWvrNDuLczcJrrgrzvRZHD4"  
 
 
+@content_router.get("/avatars")
+async def get_avatars():
+    HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY")
+
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="🚨 Missing HEYGEN_API_KEY in environment variables")
+
+    url = "https://api.heygen.com/v2/avatars"
+    headers = {
+        "accept": "application/json",
+        "X-Api-Key": HEYGEN_API_KEY
+    }
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=20)
+        data = resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"HeyGen request failed: {str(e)}")
+
+    # 🎯 Normalize output if needed
+    if "data" not in data:
+        raise HTTPException(status_code=500, detail=data)
+
+    avatars = data["data"].get("avatars", [])
+
+    # ✅ Return simple structured data
+    formatted_list = [
+        {
+            "id": a.get("avatar_id"),
+            "name": a.get("avatar_name"),
+            "category": a.get("category"),
+            "preview": a.get("preview"),
+        }
+        for a in avatars
+    ]
+
+    return {"items": formatted_list}
+
+
 
 @content_router.post("/content/generate")
 async def generate_content(request: GenerateRequest = Body(...)):
@@ -87,13 +126,13 @@ async def generate_content(request: GenerateRequest = Body(...)):
             "video_inputs": [{
                 "character": {
                     "type": "avatar",
-                    "avatar_id": "Daisy-inskirt-20220818",  # 👩‍⚕️ Friendly pro
+                    "avatar_id": "143f1c7755c74326a58ecb52e23ca3c3",  # 👩‍⚕️ Friendly pro
                     "avatar_style": "normal",
                     "scale": 0.9
                 },
                 "voice": {
                     "type": "text",
-                    "voice_id": "2d5b0e6cf36f460aa7fc47e3eee4ba54",  # Warm female
+                    "voice_id": "86eb19cf71a546d686630002b53c5c4a",  # Warm female
                     "input_text": script,
                     "speed": 1.1  # Faster = shorter video
                 },
