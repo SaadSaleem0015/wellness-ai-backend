@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends,Request,Form
+from fastapi import APIRouter,Depends,Request,Form,BackgroundTasks
 from pydantic import BaseModel
 from helpers.chat_chain import chat_with_agent
 from models.chat import Chat
@@ -25,36 +25,36 @@ class ChatSettingRequest(BaseModel):
 
 
 
-# @chatbotrouter.post("/chatbot")
-# async def chatbot_endpoint(request: Request):
-#     try:
-#         data = await request.json()
-#         print(data)
-#         return {"message": "Message received","data": data}
-#     except Exception as e:
-#         # print(e)
-#         return {"message": "Error","data": e}
-#     chat = await Chat.get_or_none(phone_number=request.phone_number)
-#     try:
-#         if not chat:
-#             chat = Chat(phone_number=request.phone_number)
-#             await chat.save()
-#         history = []
-#         messages = await ChatMessage.filter(chat=chat).order_by("created_at")
-#         for msg in messages:
-#             history.append({"role": "user", "content": msg.message})
-#             history.append({"role": "assistant", "content": msg.answer})
+@chatbotrouter.post("/chatbot/test")
+async def chatbot_endpoint(request:ChatRequest):
+    # try:
+    #     data = await request.json()
+    #     print(data)
+    #     return {"message": "Message received","data": data}
+    # except Exception as e:
+        # print(e)
+        # return {"message": "Error","data": e}
+    chat = await Chat.get_or_none(phone_number=request.phone_number)
+    try:
+        if not chat:
+            chat = Chat(phone_number=request.phone_number)
+            await chat.save()
+        history = []
+        messages = await ChatMessage.filter(chat=chat).order_by("created_at")
+        for msg in messages:
+            history.append({"role": "user", "content": msg.message})
+            history.append({"role": "assistant", "content": msg.answer})
 
-#         response_message = await chat_with_agent(request.message, history)
-#         chat_message = ChatMessage(
-#             chat=chat,
-#             message=request.message,
-#             answer=response_message
-#         )
-#         await chat_message.save()
-#         return {"response": response_message}
-#     except Exception as e:
-#         return {"error": str(e)}
+        response_message = await chat_with_agent(request.message, history)
+        chat_message = ChatMessage(
+            chat=chat,
+            message=request.message,
+            answer=response_message
+        )
+        await chat_message.save()
+        return {"response": response_message}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 
@@ -69,14 +69,15 @@ twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 TWILIO_PHONE_NUMBER = "+19513875945"   # your number here
 
 @chatbotrouter.post("/chatbot")
-async def chatbot_endpoint(request: Request):
+async def chatbot_endpoint(request: Request,background_tasks: BackgroundTasks):
     form_data = await request.form()
     from_number = form_data.get("From")     # Sender number
     incoming_message = form_data.get("Body")  # Message text
     
     chat = await Chat.filter(phone_number=from_number).first()
     if not chat:
-        chat = await Chat(phone_number=from_number).save()
+        chat = await Chat.create(phone_number=from_number)
+
     try:
         # Twilio sends data as form-urlencoded, not JSON
 
@@ -102,7 +103,8 @@ async def chatbot_endpoint(request: Request):
         )
 
         # Send message back via Twilio
-        message = twilio_client.messages.create(
+        background_tasks.add_task(
+            twilio_client.messages.create,
             body=ai_response,
             from_=TWILIO_PHONE_NUMBER,
             to=from_number
