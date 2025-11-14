@@ -460,7 +460,8 @@ def create_background_task(call_id: str, delay: int, user_id: int, lead_id: Opti
 async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
     try:
         user, company = current
-        last_call_log = await CallLog.all().order_by("id").first()
+        last_call_log = await CallLog.exclude(call_started_at=None).order_by("-call_started_at").first()
+
             
 
         if last_call_log and last_call_log.call_started_at:
@@ -475,10 +476,9 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
         else:
             createdAtGt = None
 
-            
-
+        #do one thing here , remove this comment and check the createdAtGt it should not old more ther 14 days from now     
         response = await get_all_call_list(createdAtGt)
-        # return response
+
         for call_data in response:
             existing_entry = await CallLog.filter(call_id=call_data["id"]).first()
             if existing_entry:
