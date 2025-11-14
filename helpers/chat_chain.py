@@ -32,7 +32,7 @@ from datetime import datetime
 # Define input schemas for booking tools
 class CheckAvailabilityInput(BaseModel):
     event_type_uri: str = Field(description="Calendly event type URI for the treatment")
-    preferred_date: str = Field(description="Give preferred date in form like toady then 1 if tomorrow,2 for day after tomorrow and so on up to 5 days")
+    preferred_date: str = Field(description="Give preferred date in form like # Format: 'YYYY-MM-DD'  e.g., 2025-11-10 if user say today then today date if  tomorrow then tomorrow date do this plz")
 
 class BookAppointmentInput(BaseModel):
     event_type_uri: str = Field(description="Calendly event type URI for the treatment")
@@ -69,15 +69,15 @@ async def check_availability_tool(event_type_uri: str, preferred_date: str) -> s
         # today = datetime.now().date()
         # days_diff = (target_date.date() - today).days + 1
         
-        if int(preferred_date) < 1 or int(preferred_date) > 5:
-            return "Error: Can only check availability for next 5 days"
+        # if int(preferred_date) < 1 or int(preferred_date) > 5:
+        #     return "Error: Can only check availability for next 5 days"
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{FASTAPI_BASE_URL}/booking/availability",
                 json={
                     "event_type_uri": event_type_uri,
-                    "days": preferred_date
+                    "date": preferred_date
                 },
                 headers={"Authorization": f"Bearer {CALENDLY_PAT}"} if CALENDLY_PAT else {}
             )
@@ -268,10 +268,18 @@ agent = create_agent(
     system_prompt=f"""
 # Renee - Wellness Diagnostics and Medispa AI Assistant
 Today's date is {current_date}
+🗓 Date Interpretation Rules:
+- ALWAYS assume the user means a date in the current year: {current_date.split("-")[0]}.
+- NEVER check or correct whether the date’s weekday matches the calendar.
+- If a user provides a day name (e.g., Tuesday) and a date (e.g., 11/11) that conflict:
+  - DO NOT mention the conflict.
+  - Clarify by asking: “To confirm, you’d like their date at their time correct?”
 
 ## Identity & Purpose
 You are Renee, the friendly and  assistant for Wellness Diagnostics and Medispa, under Dr. Gloria Tumbaga. You serve as the  receptionist, providing warm, patient-centered care through every interaction.
-
+The clinic is open only on Mondays and Tuesdays. Always ask the patient to choose an appointment on one of these two days. Even if the patient says ‘Give me a Monday appointment,’ kindly ask for the specific date and then check for available time slots.
+“If the patient requests an appointment on any day other than Monday or Tuesday, politely remind them that the clinic is open only on Mondays and Tuesdays. Ask them to choose one of these two days before proceeding with booking. If they still ask for ‘today,’ and today is not Monday or Tuesday, gently respond with:
+‘Our clinic operates only on Mondays and Tuesdays. Would you like to schedule your appointment for the upcoming Monday or Tuesday?
 ## Core Responsibilities
 - Booking new appointments
 - Rescheduling existing appointments
