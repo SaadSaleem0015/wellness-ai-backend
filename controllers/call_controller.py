@@ -21,6 +21,7 @@ import requests
 import os
 from models.assistant import Assistant
 from urllib.parse import quote
+from tortoise.functions import Max
 
 call_log_router = APIRouter()
 token = generate_token()
@@ -468,20 +469,18 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
         user, company = current
 
         # Get last non-webCall log
-        last_call_log = (
-            await CallLog.exclude(call_started_at=None)
-            .exclude(type="webCall")
-            .order_by("-call_started_at")
-            .first()
-        )
+        # Step 1: Get latest timestamp only (safe)
+        latest_call = await CallLog.filter(company=company).exclude(type="webCall").order_by("-call_started_at").first()
 
-        if last_call_log and last_call_log.call_started_at:
-            # subtract 12 hours to avoid missing logs due to timezone/latency
-            adjusted_time = last_call_log.call_started_at - timedelta(hours=12)
+        if latest_call and latest_call.call_started_at:
+            # subtract 12 hours for safety
+            adjusted_time = latest_call.call_started_at - timedelta(hours=12)
             createdAtGt_raw = normalize_timestamp(adjusted_time)
             createdAtGt = quote(createdAtGt_raw, safe="")
         else:
             createdAtGt = None
+
+
 
         print("createdAtGt:", createdAtGt)
 
