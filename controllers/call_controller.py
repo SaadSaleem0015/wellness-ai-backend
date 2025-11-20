@@ -529,7 +529,7 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
             
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Error saving data: {str(e)}")
-        call_logs = await CallLog.filter(company = company).prefetch_related("user").all().exclude(type="webCall")
+        call_logs = await CallLog.filter(company = company).prefetch_related("user").all()
         
         if not call_logs:
             return []
