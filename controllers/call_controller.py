@@ -1,6 +1,6 @@
 import asyncio
 import os
-from datetime import timezone
+from datetime import timedelta, timezone
 from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends,HTTPException
 import httpx
@@ -460,30 +460,52 @@ def normalize_timestamp(dt):
     # force milliseconds only (3 digits)
     iso = dt.isoformat(timespec="milliseconds")
     return iso.replace("+00:00", "Z")
+
+
 @call_log_router.get("/calls-logs")
 async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
     try:
         user, company = current
-        last_call_log = await CallLog.exclude(call_started_at=None).order_by("-call_started_at").first()
-        print("last_call_log.call_started_at",last_call_log.call_started_at)
-        if last_call_log and last_call_log.call_started_at:
-           createdAtGt_raw = normalize_timestamp(last_call_log.call_started_at)
-           createdAtGt = quote(createdAtGt_raw, safe='')
-        else:
-           createdAtGt = None
 
-        print(createdAtGt)
-        #do one thing here , remove this comment and check the createdAtGt it should not old more ther 14 days from now     
+        # Get last non-webCall log
+        last_call_log = (
+            await CallLog.exclude(call_started_at=None)
+            .exclude(type="webCall")
+            .order_by("-call_started_at")
+            .first()
+        )
+
+        if last_call_log and last_call_log.call_started_at:
+            # subtract 12 hours to avoid missing logs due to timezone/latency
+            adjusted_time = last_call_log.call_started_at - timedelta(hours=12)
+            createdAtGt_raw = normalize_timestamp(adjusted_time)
+            createdAtGt = quote(createdAtGt_raw, safe="")
+        else:
+            createdAtGt = None
+
+        print("createdAtGt:", createdAtGt)
+
+        # Fetch logs from API
         response = await get_all_call_list(createdAtGt)
 
         for call_data in response:
+
+            # 🛑 SKIP webCall logs completely
+            if call_data.get("type") == "webCall":
+                continue
+
             existing_entry = await CallLog.filter(call_id=call_data["id"]).first()
             if existing_entry:
                 continue
 
             try:
-                assistant = await Assistant.filter(vapi_assistant_id= call_data.get("assistantId")).first().prefetch_related("user", "company")
-                
+                assistant = (
+                    await Assistant.filter(
+                        vapi_assistant_id=call_data.get("assistantId")
+                    )
+                    .first()
+                    .prefetch_related("user", "company")
+                )
 
                 if not assistant:
                     continue
@@ -495,18 +517,24 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                 ended_at = call_data.get("endedAt")
 
                 if not ended_at:
-                    continue  
+                    continue
 
+                # Compute duration
                 call_duration = None
                 if started_at and ended_at:
-                    start_time = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
-                    end_time = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+                    start_time = datetime.fromisoformat(
+                        started_at.replace("Z", "+00:00")
+                    )
+                    end_time = datetime.fromisoformat(
+                        ended_at.replace("Z", "+00:00")
+                    )
                     call_duration = (end_time - start_time).total_seconds()
 
                 customer_info = call_data.get("customer") or {}
                 customer_number = customer_info.get("number")
                 customer_name = customer_info.get("name")
 
+                # Save call log — skipping webCall
                 await CallLog.create(
                     call_id=call_data.get("id"),
                     user=user_obj,
@@ -522,28 +550,38 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                     call_ended_reason=call_data.get("endedReason"),
                     is_transferred=False,
                     criteria_satisfied=False,
-                    type=call_data.get("type", None),
+                    type=call_data.get("type"),
                     recording_url=call_data.get("recordingUrl"),
                     transcript=call_data.get("transcript"),
                 )
-            
+
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Error saving data: {str(e)}")
-        call_logs = await CallLog.filter(company = company).prefetch_related("user").all()
-        
+
+        # Return all logs except type=webCall
+        call_logs = await CallLog.filter(company=company).exclude(type="webCall").prefetch_related("user").all()
+
         if not call_logs:
             return []
 
-        return [{"id": log.id,
-                 "call_id": log.call_id,
-                 "call_started_at": log.call_started_at.isoformat() if log.call_started_at else None,
-                 "call_ended_at": log.call_ended_at.isoformat() if log.call_ended_at else None,
-                 "cost": str(log.cost) if log.cost else None,
-                 "customer_number": log.customer_number,
-                 "customer_name": log.customer_name,
-                 "call_ended_reason": log.call_ended_reason,
-                 "lead_id":log.lead_id
-                } for log in call_logs]
+        return [
+            {
+                "id": log.id,
+                "call_id": log.call_id,
+                "call_started_at": log.call_started_at.isoformat()
+                if log.call_started_at
+                else None,
+                "call_ended_at": log.call_ended_at.isoformat()
+                if log.call_ended_at
+                else None,
+                "cost": str(log.cost) if log.cost else None,
+                "customer_number": log.customer_number,
+                "customer_name": log.customer_name,
+                "call_ended_reason": log.call_ended_reason,
+                "lead_id": log.lead_id,
+            }
+            for log in call_logs
+        ]
 
     except Exception as e:
         print("Error:", e)
