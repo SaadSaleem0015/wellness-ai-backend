@@ -542,7 +542,8 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                  "customer_number": log.customer_number,
                  "customer_name": log.customer_name,
                  "call_ended_reason": log.call_ended_reason,
-                 "lead_id":log.lead_id
+                 "lead_id":log.lead_id,
+                 "type":log.type,
                 } for log in call_logs]
 
     except Exception as e:
