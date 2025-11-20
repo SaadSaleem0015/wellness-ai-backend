@@ -455,27 +455,24 @@ def create_background_task(call_id: str, delay: int, user_id: int, lead_id: Opti
 
 
 
-
+def normalize_timestamp(dt):
+    dt = dt.astimezone(timezone.utc)
+    # force milliseconds only (3 digits)
+    iso = dt.isoformat(timespec="milliseconds")
+    return iso.replace("+00:00", "Z")
 @call_log_router.get("/calls-logs")
 async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
     try:
         user, company = current
         last_call_log = await CallLog.exclude(call_started_at=None).order_by("-call_started_at").first()
-
-            
-
+        print("last_call_log.call_started_at",last_call_log.call_started_at)
         if last_call_log and last_call_log.call_started_at:
-            createdAtGt_raw = (
-                last_call_log.call_started_at
-                .astimezone(timezone.utc)
-                .isoformat()
-                .replace("+00:00", "Z")
-            )
-
-            createdAtGt = quote(createdAtGt_raw, safe='')
+           createdAtGt_raw = normalize_timestamp(last_call_log.call_started_at)
+           createdAtGt = quote(createdAtGt_raw, safe='')
         else:
-            createdAtGt = None
+           createdAtGt = None
 
+        print(createdAtGt)
         #do one thing here , remove this comment and check the createdAtGt it should not old more ther 14 days from now     
         response = await get_all_call_list(createdAtGt)
 

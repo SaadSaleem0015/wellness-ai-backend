@@ -57,61 +57,61 @@ class AccessChangePayload(BaseModel):
     name:str
     password:str
 
-@auth_router.post('/signup')
-async def  signup(payload: SignupPayload):
-    user = await User.filter(email = payload.email).first()
-    if user: 
-        raise HTTPException(status_code=400, detail="User already exists")
-    try:
-        user = User(
-            name = payload.name,
-            email = payload.email,
-            password = ph.hash(payload.password),
-        )
-        await user.save()
+# @auth_router.post('/signup')
+# async def  signup(payload: SignupPayload):
+#     user = await User.filter(email = payload.email).first()
+#     if user: 
+#         raise HTTPException(status_code=400, detail="User already exists")
+#     try:
+#         user = User(
+#             name = payload.name,
+#             email = payload.email,
+#             password = ph.hash(payload.password),
+#         )
+#         await user.save()
 
-        # Create a company for this new user and assign as main admin
-        try:
-            first_name = payload.name.split()[0] if payload.name else ""
-            # e.g., "Saad's company"
-            company_name = f"{first_name}'s company" if first_name else "My company"
-            company = await Company.create(
-                company_name=company_name,
-                admin_name=payload.name
-            )
-            user.company = company
-            user.main_admin = True
-            await user.save()
-        except Exception as ce:
-            # If company creation fails, clean up the created user to avoid orphaned records
-            try:
-                await user.delete()
-            except:
-                pass
-            raise HTTPException(status_code=400, detail=f"Failed to create company: {ce}")
+#         # Create a company for this new user and assign as main admin
+#         try:
+#             first_name = payload.name.split()[0] if payload.name else ""
+#             # e.g., "Saad's company"
+#             company_name = f"{first_name}'s company" if first_name else "My company"
+#             company = await Company.create(
+#                 company_name=company_name,
+#                 admin_name=payload.name
+#             )
+#             user.company = company
+#             user.main_admin = True
+#             await user.save()
+#         except Exception as ce:
+#             # If company creation fails, clean up the created user to avoid orphaned records
+#             try:
+#                 await user.delete()
+#             except:
+#                 pass
+#             raise HTTPException(status_code=400, detail=f"Failed to create company: {ce}")
      
-        return {
-                "success": True, 
-                "verify": True,
-                "detail": "User and company created successfully" ,
-                "data": {
-                    "user": {
-                        "id": user.id,
-                        "name": user.name,
-                        "email": user.email,
-                        "main_admin": user.main_admin
-                    },
-                    "company": {
-                        "id": user.company_id,
-                        "company_name": company.company_name,
-                        "admin_name": company.admin_name
-                    }
-                }
+#         return {
+#                 "success": True, 
+#                 "verify": True,
+#                 "detail": "User and company created successfully" ,
+#                 "data": {
+#                     "user": {
+#                         "id": user.id,
+#                         "name": user.name,
+#                         "email": user.email,
+#                         "main_admin": user.main_admin
+#                     },
+#                     "company": {
+#                         "id": user.company_id,
+#                         "company_name": company.company_name,
+#                         "admin_name": company.admin_name
+#                     }
+#                 }
             
-        }
+#         }
 
-    except Exception as e:
-        raise HTTPException(status_code=400,detail=f"server error {e}")
+#     except Exception as e:
+#         raise HTTPException(status_code=400,detail=f"server error {e}")
     
 @auth_router.post("/signin")
 async def signin(data: LoginPayload):
