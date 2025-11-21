@@ -502,7 +502,7 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                 ).first().prefetch_related("user", "company")
 
                 if not assistant:
-                   print("assistant does not found")
+                    print("assistant does not found")
                     continue
 
                 user_obj = assistant.user
