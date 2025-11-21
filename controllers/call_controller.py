@@ -493,7 +493,6 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
             # Skip if exists
             existing_entry = await CallLog.filter(call_id=call_data["id"]).first()
             if existing_entry:
-                print("SKIP → Already exists in DB")
                 continue
 
             try:
@@ -503,6 +502,7 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                 ).first().prefetch_related("user", "company")
 
                 if not assistant:
+                   print("assistant does not found")
                     continue
 
                 user_obj = assistant.user
