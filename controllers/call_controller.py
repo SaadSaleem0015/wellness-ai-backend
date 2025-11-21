@@ -483,19 +483,21 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
 
         # Fetch from VAPI
         response = await get_all_call_list(createdAtGt)
-        return response
         for call_data in response:
 
             # Only save inbound/outbound phone calls
             if call_data.get("type") not in ["inboundPhoneCall", "outboundPhoneCall"]:
+                print("SKIP → Not phone call (webCall or other)")
                 continue
 
             # Skip if exists
             existing_entry = await CallLog.filter(call_id=call_data["id"]).first()
             if existing_entry:
+                print("SKIP → Already exists in DB")
                 continue
 
             try:
+                print("Finding assistant with vapi_assistant_id:", call_data.get("assistantId"))
                 assistant = await Assistant.filter(
                     vapi_assistant_id=call_data.get("assistantId")
                 ).first().prefetch_related("user", "company")
@@ -511,6 +513,7 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                 ended_at = call_data.get("endedAt")
 
                 if not ended_at:  
+                    print("SKIP → No endedAt timestamp")
                     continue
 
                 # Duration
@@ -519,12 +522,12 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                     start_time = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
                     end_time = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
                     call_duration = (end_time - start_time).total_seconds()
-
+                print("Call Duration:", call_duration)
                 # Customer fields
                 customer_info = call_data.get("customer") or {}
                 customer_number = customer_info.get("number")
                 customer_name = customer_info.get("name")
-
+                print("Saving call log to DB...")
                 # Save log
                 await CallLog.create(
                     call_id=call_data.get("id"),
@@ -545,8 +548,9 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                     recording_url=call_data.get("recordingUrl"),
                     transcript=call_data.get("transcript"),
                 )
-
+                print("SUCCESS → Call saved.")
             except Exception as e:
+                print("ERROR WHILE SAVING THIS CALL:", str(e))
                 raise HTTPException(status_code=500, detail=f"Error saving data: {str(e)}")
 
         # Return list
