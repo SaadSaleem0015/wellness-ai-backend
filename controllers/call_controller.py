@@ -483,7 +483,7 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
 
         # Fetch from VAPI
         response = await get_all_call_list(createdAtGt)
-
+        return response
         for call_data in response:
 
             # Only save inbound/outbound phone calls
