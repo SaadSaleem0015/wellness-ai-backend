@@ -1000,10 +1000,11 @@ async def get_patient_appointments_by_phone(
     
     print("request", request)
     phone = request.phone
-
+    
     # Ensure phone starts with +
     if not phone.startswith("+"):
         phone = "+" + phone
+    print("phone", phone)
     # Find patient by phone number
     patient = await Patient.filter(phone=request.phone).first()
     if not patient:
