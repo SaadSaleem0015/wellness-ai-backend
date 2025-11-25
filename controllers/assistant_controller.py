@@ -634,7 +634,7 @@ async def check_clinic_hours():
             }
 
         return {
-            "allowed": False,
+            "allowed": True,
             "reason": "Inside working hours"
         }
 
