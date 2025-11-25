@@ -9,6 +9,7 @@ from models.call_log import CallLog
 from models.lead import Lead
 from models.purchased_number import PurchasedNumber
 from helpers.vapi_helper import create_query_tool, create_vapi_tool, user_add_payload,get_headers,generate_token
+from helpers.email import send_off_hours_contact_email
 from models.user import User
 import os
 import dotenv
@@ -68,6 +69,11 @@ class AttachNumberRequest(BaseModel):
     assistant_id: int
 
 
+class OffHoursContact(BaseModel):
+    patient_name: str = Field(..., min_length=1)
+    email: EmailStr
+    phone: Optional[str] = Field(None, min_length=7, max_length=20)
+    message: Optional[str] = Field(None, max_length=1000)
 
 
  
@@ -628,10 +634,33 @@ async def check_clinic_hours():
             }
 
         return {
-            "allowed": True,
+            "allowed": False,
             "reason": "Inside working hours"
         }
 
     except Exception as e:
         print("Error checking clinic hours:", e)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@assistant_router.post("/off-hours-contact")
+async def notify_off_hours_contact(contact: OffHoursContact):
+    try:
+        email_sent = send_off_hours_contact_email(
+            patient_name=contact.patient_name,
+            patient_email=contact.email,
+            phone=contact.phone,
+            note=contact.message,
+        )
+
+        if not email_sent:
+            raise HTTPException(status_code=500, detail="Failed to notify the clinic.")
+
+        return {"success": True, "detail": "Clinic has been notified."}
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=f"Email configuration error: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unable to send notification: {e}")

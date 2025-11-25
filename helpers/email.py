@@ -1,4 +1,4 @@
-from typing import Literal, Union, Tuple, Annotated
+from typing import Literal, Union, Tuple, Annotated, Optional
 from models.user import User
 from models.code import Code
 from fastapi import HTTPException
@@ -430,3 +430,27 @@ def send_booking_confirmation_email(to_email: str, name: str, prefilled_url: str
     """
     subject = "Confirm Your Appointment"
     return send_email(to_email, subject, message_html)
+
+
+def send_off_hours_contact_email(
+    patient_name: str,
+    patient_email: str,
+    phone: Optional[str],
+    note: Optional[str],
+) -> bool:
+    subject = "Patient reached out during off-hours"
+    message_html = f"""
+    <p>Hello Wellness Diagnostics team,</p>
+    <p>{patient_name} contacted the clinic while it was closed. Please reach back out when you are next available.</p>
+
+    <p><strong>Patient details</strong></p>
+    <ul>
+        <li><strong>Name:</strong> {patient_name}</li>
+        <li><strong>Email:</strong> {patient_email}</li>
+        <li><strong>Phone:</strong> {phone or "Not provided"}</li>
+    </ul>
+
+    <p><strong>Message:</strong></p>
+    <p>{note or "No additional message was provided."}</p>
+    """
+    return send_email("jsaad3663@gmail.com", subject, message_html)
