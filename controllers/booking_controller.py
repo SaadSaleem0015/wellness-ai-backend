@@ -821,17 +821,17 @@ async def list_appointments(
             # Get or create patient by email/phone
             patient_email = invitee.get("email", "")
             patient_name = invitee.get("name", "Unknown")
-            
+            phone = invitee.get("phone", "").strip()
+            if phone and not phone.startswith("+"):
+                   phone = "+" + phone
             # Try to find patient by email first, then by phone if available
             patient = await Patient.filter(email=patient_email).first()
             if not patient and "phone" in invitee:
-                patient = await Patient.filter(phone=invitee["phone"]).first()
+
+                patient = await Patient.filter(phone=phone).first()
             
             if not patient:
                 # Create new patient if not found
-                phone = invitee.get("phone", "").strip()
-                if phone and not phone.startswith("+"):
-                   phone = "+" + phone
                 patient = await Patient.create(
                     name=patient_name,
                     email=patient_email,
@@ -1006,7 +1006,7 @@ async def get_patient_appointments_by_phone(
         phone = "+" + phone
     print("phone", phone)
     # Find patient by phone number
-    patient = await Patient.filter(phone=request.phone).first()
+    patient = await Patient.filter(phone=phone).first()
     if not patient:
         print("Patient not found for phone:", request.phone)
         raise HTTPException(status_code=404, detail=f"Patient with phone number {request.phone} not found")
