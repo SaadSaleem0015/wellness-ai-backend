@@ -322,7 +322,7 @@ async def assistant_payload(assistant_data,company_id):
             ],
             "provider": assistant_data.provider,
             "model": assistant_data.model,
-            "temperature": assistant_data.temperature,
+            # "temperature": assistant_data.temperature,
             "knowledgeBase": {
                 "provider": "canonical",
                 "topK": 5,
@@ -365,24 +365,24 @@ async def assistant_payload(assistant_data,company_id):
         ]
     }
 
-    if assistant_data.forwardingPhoneNumber:
-        user_payload["forwardingPhoneNumber"] = assistant_data.forwardingPhoneNumber
+    # if assistant_data.forwardingPhoneNumber:
+    #     user_payload["forwardingPhoneNumber"] = assistant_data.forwardingPhoneNumber
         
-        user_payload["model"]["tools"] = [
-            {
-                "type": "transferCall",
-                "destinations": [
-                    {
-                        "type": "number",
-                        "number": assistant_data.forwardingPhoneNumber,
-                        "description": "Transfer to customer support",
-                    }
-                ]
-            },
-            end_call_tool
-        ]
-    else:
-        user_payload["model"]["tools"] = [end_call_tool]
+    #     user_payload["model"]["tools"] = [
+    #         {
+    #             "type": "transferCall",
+    #             "destinations": [
+    #                 {
+    #                     "type": "number",
+    #                     "number": assistant_data.forwardingPhoneNumber,
+    #                     "description": "Transfer to customer support",
+    #                 }
+    #             ]
+    #         },
+    #         end_call_tool
+    #     ]
+    # else:
+    user_payload["model"]["tools"] = [end_call_tool]
 
     if assistant_data.knowledgeBase and len(assistant_data.knowledgeBase) > 0:
         tool_response = await create_query_tool(assistant_data.knowledgeBase)

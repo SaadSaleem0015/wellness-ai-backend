@@ -466,43 +466,32 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
     try:
         user, company = current
 
-        # Get the last saved call log
         last_call_log = await CallLog.exclude(call_started_at=None).order_by("-call_started_at").first()
-        print("last_call_log.call_started_at", last_call_log.call_started_at if last_call_log else None)
 
-        # Determine createdAtGt
         if last_call_log and last_call_log.call_started_at:
             createdAtGt_raw = normalize_timestamp(last_call_log.call_started_at)
         else:
-            # fallback: 14 days ago
             dt_14_days_ago = datetime.now(timezone.utc) - timedelta(days=14)
             createdAtGt_raw = normalize_timestamp(dt_14_days_ago)
 
         createdAtGt = quote(createdAtGt_raw, safe='')
-        print("createdAtGt:", createdAtGt)
 
-        # Fetch from VAPI
         response = await get_all_call_list(createdAtGt)
         for call_data in response:
 
-            # Only save inbound/outbound phone calls
             if call_data.get("type") not in ["inboundPhoneCall", "outboundPhoneCall"]:
-                print("SKIP → Not phone call (webCall or other)")
                 continue
 
-            # Skip if exists
             existing_entry = await CallLog.filter(call_id=call_data["id"]).first()
             if existing_entry:
                 continue
 
             try:
-                print("Finding assistant with vapi_assistant_id:", call_data.get("assistantId"))
                 assistant = await Assistant.filter(
                     vapi_assistant_id=call_data.get("assistantId")
                 ).first().prefetch_related("user", "company")
 
                 if not assistant:
-                    print("assistant does not found")
                     continue
 
                 user_obj = assistant.user
@@ -513,7 +502,6 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                 ended_at = call_data.get("endedAt")
 
                 if not ended_at:  
-                    print("SKIP → No endedAt timestamp")
                     continue
 
                 # Duration
@@ -522,12 +510,10 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                     start_time = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
                     end_time = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
                     call_duration = (end_time - start_time).total_seconds()
-                print("Call Duration:", call_duration)
                 # Customer fields
                 customer_info = call_data.get("customer") or {}
                 customer_number = customer_info.get("number")
                 customer_name = customer_info.get("name")
-                print("Saving call log to DB...")
                 # Save log
                 await CallLog.create(
                     call_id=call_data.get("id"),
@@ -548,9 +534,7 @@ async def update_call_list(current: Annotated[User, Depends(get_current_user)]):
                     recording_url=call_data.get("recordingUrl"),
                     transcript=call_data.get("transcript"),
                 )
-                print("SUCCESS → Call saved.")
             except Exception as e:
-                print("ERROR WHILE SAVING THIS CALL:", str(e))
                 raise HTTPException(status_code=500, detail=f"Error saving data: {str(e)}")
 
         # Return list

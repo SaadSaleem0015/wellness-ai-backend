@@ -29,6 +29,7 @@ async def get_tools(user: User = Depends(get_current_user)):
             )
 
         vapi_tools = response.json()
+        
         updated_tools = []
 
         # Step 2: Extract all vapi_ids coming from API

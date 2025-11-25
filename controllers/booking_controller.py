@@ -490,8 +490,12 @@ class BookingRequest(BaseModel):
 
 @booking_router.post("/book")
 async def book_appointment(req: BookingRequest, token: str = Depends(get_access_token)):
+    phone  = req.phone
+    if not phone.startswith("+"):
+       phone = "+" + phone
+
     patient, created = await Patient.get_or_create(
-        phone=req.phone,
+        phone=phone,
         defaults={
             "name": req.name,
             "email": req.email
@@ -567,7 +571,11 @@ async def reschedule_appointment(req: RescheduleRequest, token: str = Depends(ge
     try:
 
         await cancel_previous_appointment(req.event_uuid, token)
-        
+        phone = req.phone
+
+    # Ensure phone starts with +
+        if not phone.startswith("+"):
+            phone = "+" + phone
         patient = await Patient.filter(phone=req.phone).first()
         
 
@@ -821,10 +829,13 @@ async def list_appointments(
             
             if not patient:
                 # Create new patient if not found
+                phone = invitee.get("phone", "").strip()
+                if phone and not phone.startswith("+"):
+                   phone = "+" + phone
                 patient = await Patient.create(
                     name=patient_name,
                     email=patient_email,
-                    phone=invitee.get("phone", "")
+                    phone=phone
                 )
             else:
                 # Update patient info if changed
@@ -988,6 +999,11 @@ async def get_patient_appointments_by_phone(
     """Get appointments for a patient by phone number"""
     
     print("request", request)
+    phone = request.phone
+
+    # Ensure phone starts with +
+    if not phone.startswith("+"):
+        phone = "+" + phone
     # Find patient by phone number
     patient = await Patient.filter(phone=request.phone).first()
     if not patient:

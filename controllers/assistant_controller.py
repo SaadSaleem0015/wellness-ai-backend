@@ -506,17 +506,6 @@ async def assistant_call(
 ):
     try:
         user, company  = current
-
-        assistant = await Assistant.get_or_none(vapi_assistant_id=vapi_assistant_id)
-        if not assistant:
-            raise HTTPException(status_code=404, detail="Assistant not found")
-     
- 
-        if assistant.attached_Number is None:
-            return {"success": False, "detail": "Unable to call! No Number Attached with this Assistant"}
-        
-        phone_number  = await PurchasedNumber.filter(phone_number = assistant.attached_Number).first()
-        
         
        
 
@@ -526,14 +515,14 @@ async def assistant_call(
         call_url = "https://api.vapi.ai/call"
         
         payload = {
-            "name": "From AIBC",
-            "assistantId": assistant.vapi_assistant_id,
+            "name": "From wellness",
+            "assistantId": vapi_assistant_id,
             "customer": {
                 "numberE164CheckEnabled": True,
                 "extension": None,
                 "number": mobile_no,
             },
-            "phoneNumberId": phone_number.vapi_phone_uuid,
+            "phoneNumberId": "4ec91e52-ea1d-4c3d-844c-06bd64e27942",
             "assistantOverrides": {
                 "variableValues": {
                     "first_name": data.first_name,
