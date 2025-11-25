@@ -453,4 +453,4 @@ def send_off_hours_contact_email(
     <p><strong>Message:</strong></p>
     <p>{note or "No additional message was provided."}</p>
     """
-    return send_email("jsaad3663@gmail.com", subject, message_html)
+    return send_email("drtumbaga.rnva@gmail.com", subject, message_html)
