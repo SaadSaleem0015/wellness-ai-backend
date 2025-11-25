@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import Annotated, List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 import httpx
+import pytz
 from controllers.call_controller import get_call_details
 from models.assistant import Assistant
 from models.call_log import CallLog
@@ -604,3 +605,33 @@ async def assistant_call(
         print(f"Error occurred in assistant_call: {repr(e)}")
         raise HTTPException(status_code=400, detail=f"Error occurred: {repr(e)}")
 
+
+@assistant_router.get("/check-clinic-hours")
+async def check_clinic_hours():
+    try:
+        pst = pytz.timezone("America/Los_Angeles")
+        now_pst = datetime.now(pst)
+    
+        weekday = now_pst.weekday()  
+        hour = now_pst.hour         
+
+        if weekday == 6:
+            return {
+                "allowed": False,
+                "reason": "Clinic is closed (Sunday)"
+            }
+        
+        if hour < 9 or hour >= 17:
+            return {
+                "allowed": False,
+                "reason": "Clinic is closed (Outside 9 AM–5 PM PST)"
+            }
+
+        return {
+            "allowed": True,
+            "reason": "Inside working hours"
+        }
+
+    except Exception as e:
+        print("Error checking clinic hours:", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
