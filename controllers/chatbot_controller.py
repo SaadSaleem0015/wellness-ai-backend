@@ -116,60 +116,50 @@ async def chatbot_endpoint(request:ChatRequest,background_tasks:BackgroundTasks)
 
 
 @chatbotrouter.post("/chatbot")
-async def chatbot_endpoint(request: Request, background_tasks: BackgroundTasks):
+async def chatbot_endpoint(request: Request):
     form_data = await request.form()
     from_number = form_data.get("From")
     incoming_message = form_data.get("Body")
 
-    chat = await Chat.filter(phone_number=from_number).first()
-    if not chat:
-        chat = await Chat.create(phone_number=from_number)
-
     try:
+        # --- Async DB load ---
+        chat = await Chat.filter(phone_number=from_number).first()
+        if not chat:
+            chat = await Chat.create(phone_number=from_number)
+
         print(f"📩 Incoming from {from_number}: {incoming_message}")
 
-        # Load chat history
+        # --- Async chat history load ---
         history = []
         messages = await ChatMessage.filter(chat=chat).order_by("created_at")
         for msg in messages:
             history.append({"role": "user", "content": msg.message})
             history.append({"role": "assistant", "content": msg.answer})
 
-        # AI response
+        # --- Async AI Response ---
         ai_response = await chat_with_agent(incoming_message, history)
 
-        # Save to DB
+        # --- Async DB save ---
         await ChatMessage.create(
             chat=chat,
             message=incoming_message,
             answer=ai_response
         )
 
-        # Send SMS via Twilio (background)
-        background_tasks.add_task(
-            twilio_client.messages.create,
-            body=ai_response,
-            from_=TWILIO_PHONE_NUMBER,
-            to=from_number
-        )
+        print(f"✅ Sending back to {from_number}: {ai_response}")
 
-        print(f"✅ Replied to {from_number}: {ai_response}")
-
-        # --- ⭐ IMPORTANT: RETURN TwiML XML to Twilio ⭐ ---
+        # --- Twilio only receives AI reply, NO extra message ---
         twiml = MessagingResponse()
-        twiml.message("Processing your message...")
+        twiml.message(ai_response)
 
         return Response(content=str(twiml), media_type="text/xml")
 
     except Exception as e:
         print("❌ Error:", e)
 
-        # TwiML error response
         twiml = MessagingResponse()
         twiml.message("An error occurred. Please try again.")
-
         return Response(content=str(twiml), media_type="text/xml")
-
 
 
 @chatbotrouter.get("/chats/{phone_number}")
