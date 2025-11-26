@@ -1,22 +1,4 @@
 
-#             "history": history,
-#         }) # type: ignore
-        
-        
-#         print("Full agent response:", response)
-#         ai_message = ""
-#         if "messages" in response and response["messages"]:
-#             last_msg = response["messages"][-1]
-#             if hasattr(last_msg, "content"):
-#                 ai_message = last_msg.content
-#             elif isinstance(last_msg, dict):
-#                 ai_message = last_msg.get("content", "")
-        
-#         print("Agent response:", ai_message)
-#         return ai_message
-#     except Exception as e:
-#         return f"Error: {str(e)}"
-
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.agents import create_agent
@@ -64,13 +46,6 @@ async def check_availability_tool(event_type_uri: str, preferred_date: str) -> s
     try:
         print(f"Checking availability for {event_type_uri} on {preferred_date}")
         
-        # Convert preferred_date to days parameter for your API
-        # target_date = datetime.fromisoformat(preferred_date.replace('Z', '+00:00'))
-        # today = datetime.now().date()
-        # days_diff = (target_date.date() - today).days + 1
-        
-        # if int(preferred_date) < 1 or int(preferred_date) > 5:
-        #     return "Error: Can only check availability for next 5 days"
 
         async with httpx.AsyncClient() as client:
             response = await client.post(

@@ -1,4 +1,5 @@
-from fastapi import APIRouter,Depends,Request,Form,BackgroundTasks
+from fastapi import APIRouter,Depends,Request,Form,BackgroundTasks,Response
+from twilio.twiml.messaging_response import MessagingResponse
 from pydantic import BaseModel
 from helpers.chat_chain import chat_with_agent
 from models.chat import Chat
@@ -23,17 +24,17 @@ class ChatSettingRequest(BaseModel):
     model: str
     openai_key: str
 
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+TWILIO_PHONE_NUMBER = "+19513875945"   # your number here
 
 
 @chatbotrouter.post("/chatbot/test")
-async def chatbot_endpoint(request:ChatRequest):
-    # try:
-    #     data = await request.json()
-    #     print(data)
-    #     return {"message": "Message received","data": data}
-    # except Exception as e:
-        # print(e)
-        # return {"message": "Error","data": e}
+async def chatbot_endpoint(request:ChatRequest,background_tasks:BackgroundTasks):
+
     chat = await Chat.get_or_none(phone_number=request.phone_number)
     try:
         if not chat:
@@ -46,6 +47,13 @@ async def chatbot_endpoint(request:ChatRequest):
             history.append({"role": "assistant", "content": msg.answer})
 
         response_message = await chat_with_agent(request.message, history)
+        background_tasks.add_task(
+            twilio_client.messages.create,
+            body=response_message,
+            from_=TWILIO_PHONE_NUMBER,
+            to="+923099656639"
+        )
+
         chat_message = ChatMessage(
             chat=chat,
             message=request.message,
@@ -58,51 +66,86 @@ async def chatbot_endpoint(request:ChatRequest):
 
 
 
-# Twilio credentials (from your environment variables or directly)
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
 
-# Twilio client
-twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+# @chatbotrouter.post("/chatbot")
+# async def chatbot_endpoint(request: Request,background_tasks: BackgroundTasks):
+#     form_data = await request.form()
+#     from_number = form_data.get("From")    
+#     incoming_message = form_data.get("Body") 
+    
+#     chat = await Chat.filter(phone_number=from_number).first()
+#     if not chat:
+#         chat = await Chat.create(phone_number=from_number)
 
-# Your Twilio phone number (the one that receives messages)
-TWILIO_PHONE_NUMBER = "+19513875945"   # your number here
+#     try:
+
+#         print(f"📩 Incoming from {from_number}: {incoming_message}")
+
+       
+#         history = []
+#         messages = await ChatMessage.filter(chat=chat).order_by("created_at")
+#         for msg in messages:
+#             history.append({"role": "user", "content": msg.message})
+#             history.append({"role": "assistant", "content": msg.answer})
+
+#         # Get AI response
+#         ai_response = await chat_with_agent(incoming_message, history)
+
+#         # Save chat message
+#         await ChatMessage.create(
+#             chat=chat,
+#             message=incoming_message,
+#             answer=ai_response
+#         )
+
+#         # Send message back via Twilio
+#         background_tasks.add_task(
+#             twilio_client.messages.create,
+#             body=ai_response,
+#             from_=TWILIO_PHONE_NUMBER,
+#             to=from_number
+#         )
+
+#         print(f"✅ Replied to {from_number}: {ai_response}")
+
+#         return {"status": "success", "response": ai_response}
+
+#     except Exception as e:
+#         print("❌ Error:", e)
+#         return {"status": "error", "message": str(e)}
+
 
 @chatbotrouter.post("/chatbot")
-async def chatbot_endpoint(request: Request,background_tasks: BackgroundTasks):
+async def chatbot_endpoint(request: Request, background_tasks: BackgroundTasks):
     form_data = await request.form()
-    from_number = form_data.get("From")     # Sender number
-    incoming_message = form_data.get("Body")  # Message text
-    
+    from_number = form_data.get("From")
+    incoming_message = form_data.get("Body")
+
     chat = await Chat.filter(phone_number=from_number).first()
     if not chat:
         chat = await Chat.create(phone_number=from_number)
 
     try:
-        # Twilio sends data as form-urlencoded, not JSON
-
         print(f"📩 Incoming from {from_number}: {incoming_message}")
 
-        # Retrieve or create chat record
-
-        # Build history
+        # Load chat history
         history = []
         messages = await ChatMessage.filter(chat=chat).order_by("created_at")
         for msg in messages:
             history.append({"role": "user", "content": msg.message})
             history.append({"role": "assistant", "content": msg.answer})
 
-        # Get AI response
+        # AI response
         ai_response = await chat_with_agent(incoming_message, history)
 
-        # Save chat message
+        # Save to DB
         await ChatMessage.create(
             chat=chat,
             message=incoming_message,
             answer=ai_response
         )
 
-        # Send message back via Twilio
+        # Send SMS via Twilio (background)
         background_tasks.add_task(
             twilio_client.messages.create,
             body=ai_response,
@@ -112,13 +155,20 @@ async def chatbot_endpoint(request: Request,background_tasks: BackgroundTasks):
 
         print(f"✅ Replied to {from_number}: {ai_response}")
 
-        return {"status": "success", "response": ai_response}
+        # --- ⭐ IMPORTANT: RETURN TwiML XML to Twilio ⭐ ---
+        twiml = MessagingResponse()
+        twiml.message("Processing your message...")
+
+        return Response(content=str(twiml), media_type="text/xml")
 
     except Exception as e:
         print("❌ Error:", e)
-        return {"status": "error", "message": str(e)}
 
+        # TwiML error response
+        twiml = MessagingResponse()
+        twiml.message("An error occurred. Please try again.")
 
+        return Response(content=str(twiml), media_type="text/xml")
 
 
 
