@@ -485,3 +485,69 @@ async def get_all_call_list(date):
     call_list_json = call_list.json()
 
     return call_list_json
+
+
+async def get_tool_info(tool_id):
+    url = f"https://api.vapi.ai/tool/{tool_id}"
+    headers = {"Authorization": f"Bearer {vapi_api_key}"}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        return response.json() if response.status_code == 200 else None
+
+
+async def update_knowledgebase_tool(new_file_id):
+    tool_id = "21193731-97b6-46be-a79d-0590bdc1af32"
+
+    # 1. Fetch existing tool info
+    tool_info = await get_tool_info(tool_id)
+
+    if not tool_info:
+        print("Failed to fetch tool info")
+        return None
+
+    # 2. Extract existing fileIds safely
+    existing_file_ids = []
+
+    try:
+        existing_file_ids = tool_info.get("knowledgeBases", [])[0].get("fileIds", [])
+    except:
+        existing_file_ids = []
+    
+    # Avoid duplicates
+    if new_file_id not in existing_file_ids:
+        existing_file_ids.append(new_file_id)
+    # 3. Prepare update payload
+    data = {
+        "knowledgeBases": [
+            {
+                "fileIds": existing_file_ids
+            }
+        ]
+    }
+
+    url = f"https://api.vapi.ai/tool/{tool_id}"
+    headers = {
+        "Authorization": f"Bearer {vapi_api_key}",
+        "Content-Type": "application/json"
+    }
+
+    # 4. Send update request
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, headers=headers, json=data)
+
+        print("KB update response:", response.json())
+
+        if response.status_code in [200, 201]:
+            return response.json()
+        else:
+            return None
+
+
+
+
+
+
+
+
+

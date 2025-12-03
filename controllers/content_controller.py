@@ -99,7 +99,6 @@ async def generate_content(request: GenerateRequest = Body(...)):
     )
     generated_caption = response.choices[0].message.content.strip()
     
-    # ✅ Visual prompt for IMAGES only
     visual_prompt = (
         f"Luxury medispa: **{input_prompt}** treatment scene. "
         f"Happy diverse client, professional staff, modern spa, "
@@ -107,95 +106,113 @@ async def generate_content(request: GenerateRequest = Body(...)):
     )
     
     if request.content_type.lower() == "video":
-        # 🔥 HEYGEN: Talking avatar reads caption! (~30-90s realistic)
         os.makedirs("static/videos", exist_ok=True)
         
         HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY")
         if not HEYGEN_API_KEY:
-            raise HTTPException(500, "🚨 Set HEYGEN_API_KEY in .env!")
-        
+            raise HTTPException(500, "HEYGEN_API_KEY not set!")
+
         headers = {
             "X-Api-Key": HEYGEN_API_KEY,
             "Content-Type": "application/json"
         }
         
-        # Script = Caption!
         script = generated_caption
-        
+
+        trimmed_script = script.split("#")[0].strip()
+
         payload = {
             "video_inputs": [{
                 "character": {
                     "type": "avatar",
-                    "avatar_id": "143f1c7755c74326a58ecb52e23ca3c3",  # 👩‍⚕️ Friendly pro
+                    "avatar_id": "f4afa6d452b64c3990b575dfc8a39d04",
                     "avatar_style": "normal",
-                    "scale": 0.9
+                    "scale": 3.2
                 },
                 "voice": {
                     "type": "text",
-                    "voice_id": "86eb19cf71a546d686630002b53c5c4a",  # Warm female
-                    "input_text": script,
-                    "speed": 1.1  # Faster = shorter video
+                    "voice_id": "86eb19cf71a546d686630002b53c5c4a",
+                    "input_text": trimmed_script,
+                    "speed": 0.9
                 },
                 "background": {
                     "type": "color",
-                    "value": "#f8f4f0"  # Soft spa beige
+                    "value": "#f8f4f0"
                 }
             }],
             "dimension": {
-                "width": 576,   # ✅ 9:16 Reels!
-                "height": 1024
-            }
-        }
+            "width": 720,      # Free tier fully supports 720p
+            "height": 1280     # Perfect 9:16 ratio
+        },
+            "orientation": "portrait"
         
-        # 1. Generate
+        }
+
+        # 1. Generate video
         resp = requests.post(
             "https://api.heygen.com/v2/video/generate",
             json=payload,
             headers=headers,
             timeout=30
         )
-        data = resp.json()
-        print("data", data)
-        if "error" in data:
-            raise ValueError(f"HeyGen: {data['error']}")
-        video_id = data["data"]["video_id"]
         
-        # 2. **Aggressive Poll** (~10-60s total)
+        resp.raise_for_status()  # Catches 4xx/5xx
+        data = resp.json()
+        print("data--------------------", data)
+        if not data.get("code") != 0 or data.get("data") is None:
+            raise ValueError(f"HeyGen API Error: {data.get('message', data)}")
+
+        video_id = data["data"]["video_id"]
+        print(f"HeyGen video_id: {video_id}")
+
+        # 2. Poll status
         status_url = f"https://api.heygen.com/v1/video_status.get?video_id={video_id}"
-        for attempt in range(120):  # 6min max
-            await asyncio.sleep(3)  # Fast check!
-            status_resp = requests.get(status_url, headers={"X-Api-Key": HEYGEN_API_KEY}, timeout=10)
-            status_data = status_resp.json()["data"]
-            status = status_data["status"]
-            
+        video_url = None
+
+        for attempt in range(60):  # ~3 minutes max
+            await asyncio.sleep(3)
+            status_resp = requests.get(status_url, headers={"X-Api-Key": HEYGEN_API_KEY})
+            status_resp.raise_for_status()
+            status_data = status_resp.json()
+
+            status = status_data["data"]["status"]
+            print(f"Polling... status: {status}")
+
             if status == "completed":
-                video_url = status_data["video_url"]
+                video_url = status_data["data"]["video_url"]
                 break
             elif status in ("failed", "error"):
-                raise ValueError(f"HeyGen failed: {status_data.get('error', status)}")
-        
-        else:
-            raise ValueError("HeyGen timeout! (Peak hours?)")
-        
+                raise ValueError(f"HeyGen processing failed: {status_data['data'].get('error_message', status)}")
+
+        if not video_url:
+            raise TimeoutError("HeyGen video generation timed out")
+
         # 3. Download
-        video_resp = requests.get(video_url, timeout=120, stream=True)
+        video_resp = requests.get(video_url, stream=True, timeout=120)
+        video_resp.raise_for_status()
+
         video_filename = f"{uuid.uuid4()}.mp4"
         video_path = os.path.join("static", "videos", video_filename)
+
         with open(video_path, "wb") as f:
-            for chunk in video_resp.iter_content(8192):
-                f.write(chunk)
+            for chunk in video_resp.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
         local_video_url = f"/static/videos/{video_filename}"
-        
+
+        # Save to DB
         await GeneratedContent.create(
             input_prompt=input_prompt,
-            generated_text=generated_caption,  # ✅ Caption!
+            generated_text=generated_caption,
             content_type="video",
             image_url=None,
             video_url=video_filename,
         )
-        
+        print("ithy tk ty a gya")
         return {
-            "text": generated_caption,  # ✅ FIXED!
+            "success"  :True, 
+            "text": generated_caption,
             "videoUrl": local_video_url,
             "contentType": "video"
         }

@@ -10,7 +10,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from helpers.jwt_token import get_current_user
-from helpers.vapi_helper import delete_from_vapi_file, upload_file_to_vapi, create_knowledgebase_tool, delete_vapi_tool
+from helpers.vapi_helper import delete_from_vapi_file, update_knowledgebase_tool, upload_file_to_vapi, create_knowledgebase_tool, delete_vapi_tool
 from models.knowledge_base import Knowledgebase
 from pathlib import Path
 import uuid
@@ -44,7 +44,7 @@ async def upload_file(
         )
         with open(file_path, "wb") as f:
             f.write(file_content)
-
+        vapi_file_id = vapi_file["id"]
         # Create knowledge base tool with the uploaded file
         tool_response = await create_knowledgebase_tool(vapi_file["id"], file.filename)
         
@@ -170,3 +170,44 @@ async def download_file(
 
 
 
+@kb_router.post("/upload-scrapped-data")
+async def upload_file(
+    background: BackgroundTasks,
+    current: User = Depends(get_current_user),
+    file: UploadFile = File(...)
+):
+    try:
+        user, company = current
+
+        # Create uploads directory
+        os.makedirs("uploads", exist_ok=True)
+
+        # Read uploaded file content
+        file_content = await file.read()
+
+        # Prepare file for Vapi upload
+        files = {"file": (file.filename, file_content, file.content_type)}
+
+        # Upload to Vapi
+        vapi_file = await upload_file_to_vapi(files)
+        vapi_file_id = vapi_file["id"]
+
+        # Save locally with unique name
+        unique_filename = f"{uuid.uuid4()}_{file.filename}"
+        file_path = os.path.join("uploads", unique_filename)
+
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+
+        # Background task → update tool
+        background.add_task(update_knowledgebase_tool, vapi_file_id)
+
+        return {
+            "success": True,
+            "message": "File uploaded and knowledge base updated.",
+            "fileId": vapi_file_id,
+        }
+
+    except Exception as e:
+        print("Upload error:", e)
+        return {"success": False, "message": "Upload failed."}
