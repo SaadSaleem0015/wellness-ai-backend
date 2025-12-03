@@ -16,6 +16,7 @@ from controllers.call_controller import call_log_router
 from controllers.content_controller import content_router
 from controllers.call_controller import call_log_router
 from controllers.chatbot_controller import chatbotrouter
+from controllers.web_scrapper_controller import webscrapperrouter
 
 
 
@@ -47,6 +48,7 @@ app.include_router(call_log_router,prefix='/api', tags=['Call'])
 app.include_router(content_router,prefix='/api', tags=['Content'])
 
 app.include_router(chatbotrouter,prefix='/api', tags=['Chatbot'])
+app.include_router(webscrapperrouter,prefix='/api', tags=['WebScrapper'])
 
 
 

@@ -7,6 +7,9 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+/scrape
+/scraped_data
+/crawl_results
 /uploads
 .Python
 env/
