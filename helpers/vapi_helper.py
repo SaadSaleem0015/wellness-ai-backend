@@ -81,9 +81,9 @@ async def user_add_payload(assistant_data,user):
             {
             "on": "customer.speech.timeout",
             "options": {
-                "timeoutSeconds": 8,
+                "timeoutSeconds": 15,
                 "triggerMaxCount": 1,
-                "triggerResetMode": "never"
+                "triggerResetMode": "onUserSpeech"
             },
             "do": [
                 {
@@ -95,20 +95,6 @@ async def user_add_payload(assistant_data,user):
                 "tool": {
                     "type": "endCall"
                 }
-                }
-            ]
-            },
-            {
-            "on": "customer.speech.timeout",
-            "options": {
-                "timeoutSeconds": 5,
-                "triggerMaxCount": 1,
-                "triggerResetMode": "onUserSpeech"
-            },
-            "do": [
-                {
-                "type": "say",
-                "exact": "Thank you"
                 }
             ]
             }
@@ -405,7 +391,7 @@ async def assistant_payload(assistant_data,company_id):
             {
             "on": "customer.speech.timeout",
             "options": {
-                "timeoutSeconds": 10,
+                "timeoutSeconds": 15,
                 "triggerMaxCount": 1,
                 "triggerResetMode": "onUserSpeech"
             },
@@ -416,20 +402,6 @@ async def assistant_payload(assistant_data,company_id):
                 }
             ]
             },
-             {
-            "on": "customer.speech.timeout",
-            "options": {
-                "timeoutSeconds": 5,
-                "triggerMaxCount": 1,
-                "triggerResetMode": "onUserSpeech"
-            },
-            "do": [
-                {
-                "type": "say",
-                "exact": "Thank you"
-                }
-            ]
-            }
             
         ],
         #   "hooks": [
