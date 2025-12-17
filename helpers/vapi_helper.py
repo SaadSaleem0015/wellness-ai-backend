@@ -391,23 +391,32 @@ async def assistant_payload(assistant_data,company_id):
             {
             "on": "customer.speech.timeout",
             "options": {
-                "timeoutSeconds": 15,
+                "timeoutSeconds": 10,
                 "triggerMaxCount": 1,
-                "triggerResetMode": "never"
+                "triggerResetMode": "onUserSpeech"
             },
             "do": [
                 {
                 "type": "say",
                 "exact": "I will be ending the call now. Please feel free to call back if you need help."
-                },
-                {
-                "type": "tool",
-                "tool": {
-                    "type": "endCall"
                 }
+            ]
+            },
+             {
+            "on": "customer.speech.timeout",
+            "options": {
+                "timeoutSeconds": 2,
+                "triggerMaxCount": 1,
+                "triggerResetMode": "onUserSpeech"
+            },
+            "do": [
+                {
+                "type": "say",
+                "exact": "Thank you"
                 }
             ]
             }
+            
         ],
         #   "hooks": [
         #   {
