@@ -56,7 +56,7 @@ async def get_user_call_logs(user: Annotated[User, Depends(get_current_user)]
         raise HTTPException(status_code=400, detail=f"{str(e)}")
     
 @call_log_router.get("/user/call-logs-detail") 
-async def get_user_call_logs(current: Annotated[User, Depends(get_current_user)]):
+async def get_user_call_logss(current: Annotated[User, Depends(get_current_user)]):
     try:
         user, company  = current
         call_logs = await CallLog.filter(company=company).prefetch_related("user").all().order_by("-id")
@@ -83,7 +83,7 @@ async def call_details(phoneNumber: str, user:Annotated[User, Depends(get_curren
         raise HTTPException(status_code=400, detail=f"{str(e)}")
 
 @call_log_router.get("/user/call-logs") 
-async def get_user_call_logs(user: Annotated[User, Depends(get_current_user)]
+async def get_user_call_logsss(user: Annotated[User, Depends(get_current_user)]
 ):
     try:
         call_logs = await CallLog.filter(company = user.company).prefetch_related("user").all()

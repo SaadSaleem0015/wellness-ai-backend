@@ -37,6 +37,8 @@ TORTOISE_CONFIG = {
                 "models.chat",
                 "models.chat_message",
                 "models.chat_setting",
+                "models.uploadedasset",
+                "models.clinichoursresponse",
                 "aerich.models"
             ]
         }

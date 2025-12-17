@@ -1,9 +1,10 @@
 from datetime import date, datetime
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Dict
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 import httpx
 import pytz
 from controllers.call_controller import get_call_details
+from models.clinichoursresponse import ClinicHoursResponse
 from models.assistant import Assistant
 from models.call_log import CallLog
 from models.lead import Lead
@@ -14,7 +15,7 @@ from models.user import User
 import os
 import dotenv
 import requests
-from pydantic import BaseModel,EmailStr, Field
+from pydantic import BaseModel,EmailStr, Field, validator
 import os
 import httpx
 from helpers.jwt_token import get_current_user
@@ -612,35 +613,35 @@ async def assistant_call(
         raise HTTPException(status_code=400, detail=f"Error occurred: {repr(e)}")
 
 
-@assistant_router.get("/check-clinic-hours")
-async def check_clinic_hours():
-    try:
-        pst = pytz.timezone("America/Los_Angeles")
-        now_pst = datetime.now(pst)
+# @assistant_router.get("/check-clinic-hours")
+# async def check_clinic_hours():
+#     try:
+#         pst = pytz.timezone("America/Los_Angeles")
+#         now_pst = datetime.now(pst)
     
-        weekday = now_pst.weekday()  
-        hour = now_pst.hour         
+#         weekday = now_pst.weekday()  
+#         hour = now_pst.hour         
 
-        if weekday == 6:
-            return {
-                "allowed": False,
-                "reason": "Clinic is closed (Sunday)"
-            }
+#         if weekday == 6:
+#             return {
+#                 "allowed": False,
+#                 "reason": "Clinic is closed (Sunday)"
+#             }
         
-        if hour < 9 or hour >= 17:
-            return {
-                "allowed": False,
-                "reason": "Clinic is closed (Outside 9 AM–5 PM PST)"
-            }
+#         if hour < 9 or hour >= 17:
+#             return {
+#                 "allowed": False,
+#                 "reason": "Clinic is closed (Outside 9 AM–5 PM PST)"
+#             }
 
-        return {
-            "allowed": True,
-            "reason": "Inside working hours"
-        }
+#         return {
+#             "allowed": True,
+#             "reason": "Inside working hours"
+#         }
 
-    except Exception as e:
-        print("Error checking clinic hours:", e)
-        raise HTTPException(status_code=500, detail="Internal server error")
+#     except Exception as e:
+#         print("Error checking clinic hours:", e)
+#         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @assistant_router.post("/off-hours-contact")
@@ -664,3 +665,119 @@ async def notify_off_hours_contact(contact: OffHoursContact):
         raise HTTPException(status_code=500, detail=f"Email configuration error: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unable to send notification: {e}")
+
+
+
+
+class ClinicHoursRequest(BaseModel):
+    hours: Dict[str, Optional[str]]  # {"0": "09:00-17:00", "1": "09:00-17:00", ...}
+    # Format: "HH:MM-HH:MM" or null for closed
+
+# Day mapping
+DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+DAY_NUMBERS = {name: i for i, name in enumerate(DAY_NAMES)}
+
+# ============ CHECK IF CLINIC IS OPEN ============
+@assistant_router.get("/check-clinic-hours")
+async def check_clinic_hours():
+    """Check if clinic is open right now"""
+    pst = pytz.timezone("America/Los_Angeles")
+    now = datetime.now(pst)
+    
+    day_num = now.weekday()  # 0=Monday
+    current_time = now.strftime("%H:%M")
+    
+    # Get today's hours
+    hours = await ClinicHoursResponse.get_or_none(day=day_num)
+    
+    if not hours or not hours.opening_time:
+        return {"open": False, "reason": "Closed today"}
+    
+    # Parse time range "09:00-17:00"
+    open_time, close_time = hours.opening_time.split('-')
+    
+    if open_time <= current_time <= close_time:
+        return {
+            "open": True,
+            "message": f"Open until {close_time}",
+            "hours": hours.opening_time
+        }
+    else:
+        return {
+            "open": False, 
+            "message": f"Open {hours.opening_time}",
+            "reason": "Outside working hours"
+        }
+
+# ============ GET ALL HOURS ============
+@assistant_router.get("/clinic-hours")
+async def get_hours():
+    """Get all clinic hours"""
+    all_hours = await ClinicHoursResponse.all()
+    
+    # Convert to simple object
+    result = {}
+    for h in all_hours:
+        day_name = DAY_NAMES[h.day]
+        result[day_name] = h.open_time  # "09:00-17:00" or null
+    
+    # Fill missing days
+    for i, day in enumerate(DAY_NAMES):
+        if day not in result:
+            result[day] = None
+    
+    return result
+
+# ============ SET ALL HOURS AT ONCE ============
+@assistant_router.post("/clinic-hours")
+async def set_hours(data: ClinicHoursRequest):
+    """Set all clinic hours in one go"""
+    
+    for day_str, time_range in data.hours.items():
+        # Convert day to number (accept both "0" or "Mon")
+        if day_str in DAY_NUMBERS:
+            day_num = DAY_NUMBERS[day_str]
+        elif day_str.isdigit() and 0 <= int(day_str) <= 6:
+            day_num = int(day_str)
+        else:
+            continue  # Skip invalid day
+        
+        # Validate time format if not null
+        if time_range:
+            try:
+                open_t, close_t = time_range.split('-')
+                # Validate times
+                datetime.strptime(open_t, "%H:%M")
+                datetime.strptime(close_t, "%H:%M")
+            except:
+                raise HTTPException(400, f"Invalid time format for day {day_str}. Use 'HH:MM-HH:MM'")
+        
+        # Save to database
+        await ClinicHoursResponse.update_or_create(
+            day=day_num,
+            defaults={"open_time": time_range}
+        )
+    
+    return {"success": True, "message": "Hours updated"}
+
+# ============ RESET TO DEFAULT ============
+@assistant_router.post("/clinic-hours/reset")
+async def reset_hours():
+    """Reset to default hours (Mon-Fri 9-5)"""
+    default = {
+        "0": "09:00-17:00",  # Mon
+        "1": "09:00-17:00",  # Tue
+        "2": "09:00-17:00",  # Wed
+        "3": "09:00-17:00",  # Thu
+        "4": "09:00-17:00",  # Fri
+        "5": None,  # Sat closed
+        "6": None   # Sun closed
+    }
+    
+    for day_str, time_range in default.items():
+        await ClinicHoursResponse.update_or_create(
+            day=int(day_str),
+            defaults={"open_time": time_range}
+        )
+    
+    return {"success": True, "message": "Reset to default hours"}

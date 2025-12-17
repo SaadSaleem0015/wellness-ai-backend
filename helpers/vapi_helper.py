@@ -63,6 +63,43 @@ async def user_add_payload(assistant_data,user):
         # "analysisPlan": {
         #     "summaryPrompt": assistant_data.systemPrompt,
         # },
+        "hooks": [
+            {
+            "on": "customer.speech.timeout",
+            "options": {
+                "timeoutSeconds": 5,
+                "triggerMaxCount": 1,
+                "triggerResetMode": "onUserSpeech"
+            },
+            "do": [
+                {
+                "type": "say",
+                "exact": "I didn’t hear anything. Are you still there?"
+                }
+            ]
+            },
+            {
+            "on": "customer.speech.timeout",
+            "options": {
+                "timeoutSeconds": 15,
+                "triggerMaxCount": 1,
+                "triggerResetMode": "never"
+            },
+            "do": [
+                {
+                "type": "say",
+                "exact": "I will be ending the call now. Please feel free to call back if you need help."
+                },
+                {
+                "type": "tool",
+                "tool": {
+                    "type": "endCall"
+                }
+                }
+            ]
+            }
+        ],
+
         "voicemailDetection": {
         "provider": "twilio",
         "voicemailDetectionTypes": ["machine_end_beep", "machine_end_silence"],
@@ -336,6 +373,42 @@ async def assistant_payload(assistant_data,company_id):
             "model":voice_model,
         },
         "name": assistant_data.name,
+              "hooks": [
+            {
+            "on": "customer.speech.timeout",
+            "options": {
+                "timeoutSeconds": 5,
+                "triggerMaxCount": 1,
+                "triggerResetMode": "onUserSpeech"
+            },
+            "do": [
+                {
+                "type": "say",
+                "exact": "I didn’t hear anything. Are you still there?"
+                }
+            ]
+            },
+            {
+            "on": "customer.speech.timeout",
+            "options": {
+                "timeoutSeconds": 15,
+                "triggerMaxCount": 1,
+                "triggerResetMode": "never"
+            },
+            "do": [
+                {
+                "type": "say",
+                "exact": "I will be ending the call now. Please feel free to call back if you need help."
+                },
+                {
+                "type": "tool",
+                "tool": {
+                    "type": "endCall"
+                }
+                }
+            ]
+            }
+        ],
         #   "hooks": [
         #   {
         #     "on": "customer.speech.timeout",
