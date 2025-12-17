@@ -67,7 +67,7 @@ async def user_add_payload(assistant_data,user):
             {
             "on": "customer.speech.timeout",
             "options": {
-                "timeoutSeconds": 5,
+                "timeoutSeconds": 8,
                 "triggerMaxCount": 1,
                 "triggerResetMode": "onUserSpeech"
             },
@@ -377,7 +377,7 @@ async def assistant_payload(assistant_data,company_id):
             {
             "on": "customer.speech.timeout",
             "options": {
-                "timeoutSeconds": 5,
+                "timeoutSeconds": 8,
                 "triggerMaxCount": 1,
                 "triggerResetMode": "onUserSpeech"
             },
