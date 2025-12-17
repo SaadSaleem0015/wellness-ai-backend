@@ -81,7 +81,7 @@ async def user_add_payload(assistant_data,user):
             {
             "on": "customer.speech.timeout",
             "options": {
-                "timeoutSeconds": 15,
+                "timeoutSeconds": 8,
                 "triggerMaxCount": 1,
                 "triggerResetMode": "never"
             },
@@ -95,6 +95,20 @@ async def user_add_payload(assistant_data,user):
                 "tool": {
                     "type": "endCall"
                 }
+                }
+            ]
+            },
+            {
+            "on": "customer.speech.timeout",
+            "options": {
+                "timeoutSeconds": 2,
+                "triggerMaxCount": 1,
+                "triggerResetMode": "onUserSpeech"
+            },
+            "do": [
+                {
+                "type": "say",
+                "exact": "Thank you"
                 }
             ]
             }
