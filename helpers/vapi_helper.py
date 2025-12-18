@@ -56,6 +56,14 @@ async def user_add_payload(assistant_data,user):
             "provider": assistant_data.voice_provider,
             "voiceId": assistant_data.voice,
             "model":voice_model,
+            "fallbackPlan": {
+      "voices": [
+        {
+          "voiceId": "Paige",
+          "provider": "vapi"
+        }
+      ]
+    },
         },
         "name": assistant_data.name,
         "firstMessage": assistant_data.first_message,
@@ -382,6 +390,14 @@ async def assistant_payload(assistant_data,company_id):
             "provider": assistant_data.voice_provider,
             "voiceId": assistant_data.voice,
             "model":voice_model,
+            "fallbackPlan": {
+      "voices": [
+        {
+          "voiceId": "Paige",
+          "provider": "vapi"
+        }
+      ]
+    },
         },
         "name": assistant_data.name,
               "hooks": [
