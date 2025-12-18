@@ -65,18 +65,19 @@ async def user_add_payload(assistant_data,user):
         # },
         "hooks": [
             {
+            "do": [
+                {
+                "type": "say",
+                "exact": "I didn’t hear anything. Are you still there?"
+                }
+            ],
             "on": "customer.speech.timeout",
             "options": {
                 "timeoutSeconds": 8,
                 "triggerMaxCount": 1,
                 "triggerResetMode": "onUserSpeech"
-            },
-            "do": [
-                {
-                "type": "say",
-                "prompt": "The user has not responded in 20s. Based on the above conversation in {{transcript}} ask the user if they need help or if not you will be ending the call"
-                }
-            ]
+            }
+            
             },
             {
             "on": "customer.speech.timeout",
@@ -394,8 +395,7 @@ async def assistant_payload(assistant_data,company_id):
             "do": [
                 {
                 "type": "say",
-                "prompt": "The user has not responded in 20s. Based on the above conversation in {{transcript}} ask the user if they need help or if not you will be ending the call"
-
+                "exact": "I didn’t hear anything. Are you still there?"
                 }
             ]
             },
