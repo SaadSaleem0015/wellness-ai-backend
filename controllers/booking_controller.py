@@ -772,21 +772,35 @@ async def list_appointments(
             f"{CALENDLY_BASE_URL}/users/me",
             headers={"Authorization": f"Bearer {token}"}
         )
+        last_appointment = await Appointment.all().order_by('-id').first()
+        if last_appointment:
+                last_appointment_formatted_date = (
+            last_appointment.appointment_date
+            .astimezone(timezone.utc)        # ensure UTC
+            .isoformat(timespec="microseconds")
+            .replace("+00:00", "Z")
+        )
+        else:
+             last_appointment_formatted_date = None
+
+        print("Formatted Date:", last_appointment_formatted_date)
         if user_response.status_code != 200:
             raise HTTPException(status_code=user_response.status_code, detail=user_response.text)
         user_uri = user_response.json()["resource"]["uri"]
-        
-        # Get events list
         response = await client.get(
             f"{CALENDLY_BASE_URL}/scheduled_events",
             headers={"Authorization": f"Bearer {token}"},
-            params={"user": user_uri}
+            params={
+                "count" : 100,
+                "organization": "https://api.calendly.com/organizations/GACGPHCXI44737SK",
+                "min_start_time": last_appointment_formatted_date}
         )
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
         
         events_data = response.json()["collection"]
-        
+        # return events_data
+        # return {"events_data": events_data}
         async def process_and_save_appointment(event: Dict) -> Dict:
             uuid = event["uri"].split("/")[-1]
             invitees_resp = await client.get(
