@@ -74,7 +74,7 @@ async def user_add_payload(assistant_data,user):
             "do": [
                 {
                 "type": "say",
-                "exact": "I didn’t hear anything. Are you still there?"
+                "prompt": "The user has not responded in 20s. Based on the above conversation in {{transcript}} ask the user if they need help or if not you will be ending the call"
                 }
             ]
             },
@@ -394,7 +394,8 @@ async def assistant_payload(assistant_data,company_id):
             "do": [
                 {
                 "type": "say",
-                "exact": "I didn’t hear anything. Are you still there?"
+                "prompt": "The user has not responded in 20s. Based on the above conversation in {{transcript}} ask the user if they need help or if not you will be ending the call"
+
                 }
             ]
             },
