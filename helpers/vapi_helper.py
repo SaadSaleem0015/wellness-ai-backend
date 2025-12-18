@@ -93,12 +93,9 @@ async def user_add_payload(assistant_data,user):
                 },
                 {
                 "type": "tool",
-                 "tool": {
-        "type": "function",
-        "function": {
-          "name": "end_call_tool"
-        }
-      }
+                "tool": {
+                    "type": "endCall"
+                }
                 }
             ],
             },
