@@ -120,15 +120,15 @@ async def user_add_payload(assistant_data,user):
         }
     }
 
-    end_call_tool = {
-        "type": "endCall",
-        "messages": [
-            {
-                "type": "request-complete",
-                "content": "Voicemail detected. Ending call immediately."
-            }
-        ]
-    }
+    # end_call_tool = {
+    #     "type": "endCall",
+    #     "messages": [
+    #         {
+    #             "type": "request-complete",
+    #             "content": "Voicemail detected. Ending call immediately."
+    #         }
+    #     ]
+    # }
 
     if assistant_data.forwardingPhoneNumber:
         user_payload["forwardingPhoneNumber"] = assistant_data.forwardingPhoneNumber
@@ -144,10 +144,10 @@ async def user_add_payload(assistant_data,user):
                     }
                 ]
             },
-            end_call_tool
+            # end_call_tool
         ]
-    else:
-        user_payload["model"]["tools"] = [end_call_tool]
+    # else:
+    #     user_payload["model"]["tools"] = [end_call_tool]
 
     # if assistant_data.knowledgeBase and len(assistant_data.knowledgeBase) > 0:
     #     tool_response = await create_query_tool(assistant_data.knowledgeBase)
@@ -441,15 +441,15 @@ async def assistant_payload(assistant_data,company_id):
         }
             }
 
-    end_call_tool = {
-        "type": "endCall",
-        "messages": [
-            {
-                "type": "request-complete",
-                "content": "Voicemail detected. Ending call immediately."
-            }
-        ]
-    }
+    # end_call_tool = {
+    #     "type": "endCall",
+    #     "messages": [
+    #         {
+    #             "type": "request-complete",
+    #             "content": "Voicemail detected. Ending call immediately."
+    #         }
+    #     ]
+    # }
 
     # if assistant_data.forwardingPhoneNumber:
     #     user_payload["forwardingPhoneNumber"] = assistant_data.forwardingPhoneNumber
@@ -468,7 +468,7 @@ async def assistant_payload(assistant_data,company_id):
     #         end_call_tool
     #     ]
     # else:
-    user_payload["model"]["tools"] = [end_call_tool]
+    # user_payload["model"]["tools"] = [end_call_tool]
 
     if assistant_data.knowledgeBase and len(assistant_data.knowledgeBase) > 0:
         tool_response = await create_query_tool(assistant_data.knowledgeBase)
