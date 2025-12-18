@@ -96,8 +96,17 @@ async def user_add_payload(assistant_data,user):
                     "type": "endCall"
                 }
                 }
-            ]
-            }
+            ],
+            },
+             {
+      "on": "customer.speech.interrupted",
+      "do": [
+        {
+          "type": "say",
+          "exact": "I apologize for interrupting. Please continue."
+        }
+      ]
+    }
         ],
 
         "voicemailDetection": {
@@ -402,6 +411,15 @@ async def assistant_payload(assistant_data,company_id):
                 }
             ]
             },
+            {
+      "on": "customer.speech.interrupted",
+      "do": [
+        {
+          "type": "say",
+          "exact": "I apologize for interrupting. Please continue."
+        }
+      ]
+    }
             
         ],
         #   "hooks": [
