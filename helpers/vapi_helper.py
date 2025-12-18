@@ -88,7 +88,8 @@ async def user_add_payload(assistant_data,user):
             "do": [
                 {
                 "type": "say",
-                "exact": "I will be ending the call now. Please feel free to call back if you need help ... ... ... ... ..."
+                "exact": "I will be ending the call now. Please feel free to call back if you need help.... ... ... Thank you for calling. Goodbye!"
+
                 },
                 {
                 "type": "tool",
@@ -407,7 +408,7 @@ async def assistant_payload(assistant_data,company_id):
             "do": [
                 {
                 "type": "say",
-                "exact": "I will be ending the call now. Please feel free to call back if you need help."
+                "exact": "I will be ending the call now. Please feel free to call back if you need help.... ... ... Thank you for calling. Goodbye!"
                 }
             ]
             },
