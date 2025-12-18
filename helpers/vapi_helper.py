@@ -59,7 +59,7 @@ async def user_add_payload(assistant_data,user):
         },
         "name": assistant_data.name,
         "firstMessage": assistant_data.first_message,
-        # "endCallPhrases": assistant_data.endCallPhrases,
+        "endCallPhrases": assistant_data.endCallPhrases,
         # "analysisPlan": {
         #     "summaryPrompt": assistant_data.systemPrompt,
         # },
@@ -412,7 +412,7 @@ async def assistant_payload(assistant_data,company_id):
         #     }
         # ],
         "firstMessage": assistant_data.first_message,
-        # "endCallPhrases": assistant_data.endCallPhrases,
+        "endCallPhrases": assistant_data.endCallPhrases,
         "analysisPlan": {
             "summaryPrompt": assistant_data.systemPrompt,
         },
