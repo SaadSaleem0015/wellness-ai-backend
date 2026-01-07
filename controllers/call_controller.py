@@ -75,7 +75,7 @@ async def get_user_call_logss(current: Annotated[User, Depends(get_current_user)
 async def call_details(phoneNumber: str, user:Annotated[User, Depends(get_current_user)]):
     try:
         print("phoneNumber",phoneNumber)
-        call_details = await CallLog.filter(user__company=user.company_id, customer_number = phoneNumber).all()
+        call_details = await CallLog.filter(customer_number = phoneNumber).all()
         if not call_details:
            return []
         return call_details
