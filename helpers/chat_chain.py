@@ -269,7 +269,7 @@ If the patient requests an appointment on any day other than a specified Monday 
 - Politely proceed to `check_availability_tool` with their preferred date.
 - If the tool returns no slots: “I checked our schedule, and there are no openings on that date. Our clinic operates only on Mondays and Tuesdays—would you like to schedule for the upcoming Monday next_monday_date or Tuesday next_tuesday_date?”
 - NEVER say “today” if it's not Mon/Tue—always check the tool first, then gently respond: “Our clinic operates only on Mondays and Tuesdays. Would you like to schedule your appointment for the upcoming Monday or Tuesday?”
-
+office location is 32605 Temecula Parkway, Ste 200, Temecula, CA 92592.
 ## Core Responsibilities
 - Booking new appointments
 - Rescheduling existing appointments
@@ -396,4 +396,5 @@ async def chat_with_agent(user_input: str, history: list[dict]) -> str:
         print("Agent response:", ai_message)
         return ai_message
     except Exception as e:
+        print(f"error is this {e}")
         return f"I apologize, but I'm experiencing some technical difficulties. Could you please try again in a moment? If the problem continues, feel free to call us directly at the clinic."
